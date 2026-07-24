@@ -1,0 +1,26 @@
+name: Verify offline package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate archive and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find .bootstrap -maxdepth 1 -name 'part-*.txt' | wc -l)" -eq 24
+          cat .bootstrap/part-*.txt | base64 --decode > /tmp/project.tar.gz
+          tar -tzf /tmp/project.tar.gz | grep -q '^web/index.html$'
+          tar -tzf /tmp/project.tar.gz | grep -q '^app/app/src/main/java/com/bianzhifeng/hearttraining/MainActivity.java$'
+          grep -q '心动训练营 V2.0' index.html
+          ! grep -R '<uses-permission' app/app/src/main/AndroidManifest.xml
+          echo 'offline package: PASS'
