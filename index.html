@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#7c3aed">
+  <title>心动训练营 V2.0</title>
+  <style>
+    :root{color-scheme:light dark;font-family:system-ui,sans-serif}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f3ff;color:#231942}.box{max-width:560px;margin:24px;padding:28px;border-radius:24px;background:#fff;box-shadow:0 16px 50px #5b21b622}.bar{height:10px;border-radius:99px;background:#e9ddff;overflow:hidden}.bar i{display:block;width:8%;height:100%;background:#7c3aed;transition:.25s}small{opacity:.72}button{border:0;border-radius:12px;padding:12px 18px;background:#7c3aed;color:#fff;font-weight:700} @media(prefers-color-scheme:dark){body{background:#15111d;color:#f7f1ff}.box{background:#211a2d}}
+  </style>
+</head>
+<body>
+  <main class="box">
+    <h1>心动训练营 V2.0</h1>
+    <p id="msg">正在载入完全离线的训练内容……</p>
+    <div class="bar"><i id="progress"></i></div>
+    <p><small>首次打开需要读取仓库内的数据分块，载入后训练数据只保存在你的浏览器本地。</small></p>
+    <button id="retry" hidden>重新载入</button>
+  </main>
+<script>
+const msg=document.querySelector('#msg'),bar=document.querySelector('#progress'),retry=document.querySelector('#retry');
+const repo='https://raw.githubusercontent.com/no9u93nuong2445-spec/my-website/main/.bootstrap/';
+const td=new TextDecoder();
+function text(bytes){return td.decode(bytes)}
+function oct(bytes,start,len){const s=text(bytes.slice(start,start+len)).replace(/\0/g,'').trim();return parseInt(s||'0',8)}
+function untar(bytes){const files=new Map();let p=0;while(p+512<=bytes.length){const h=bytes.slice(p,p+512);if(h.every(v=>v===0))break;const name=text(h.slice(0,100)).replace(/\0.*$/,'');const size=oct(h,124,12);p+=512;files.set(name,bytes.slice(p,p+size));p+=Math.ceil(size/512)*512}return files}
+async function readPart(i){const name=`part-${String(i).padStart(3,'0')}.txt`;for(const url of [`.bootstrap/${name}`,repo+name]){try{const r=await fetch(url,{cache:'no-store'});if(r.ok)return r.text()}catch(e){}}throw new Error('无法读取 '+name)}
+async function start(){retry.hidden=true;try{let encoded='';for(let i=0;i<24;i++){msg.textContent=`正在读取离线数据 ${i+1}/24……`;encoded+=await readPart(i);bar.style.width=`${8+(i+1)*2.6}%`}const raw=atob(encoded.replace(/\s/g,'')),gz=Uint8Array.from(raw,c=>c.charCodeAt(0));msg.textContent='正在解压训练内容……';bar.style.width='78%';if(!('DecompressionStream'in window))throw new Error('当前浏览器版本过旧，请升级Chrome或Edge');const stream=new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'));const tar=new Uint8Array(await new Response(stream).arrayBuffer()),files=untar(tar);window.__heartPayload=[];for(let i=1;i<=7;i++){const path=`web/payload/part-${String(i).padStart(2,'0')}.js`;const js=text(files.get(path)||new Uint8Array());if(!js)throw new Error('数据包缺少 '+path);Function(js)()}const html=window.__heartPayload.join('');if(!html)throw new Error('训练页面生成失败');bar.style.width='100%';msg.textContent='载入完成';setTimeout(()=>{document.open();document.write(html);document.close()},80)}catch(e){console.error(e);msg.textContent='载入失败：'+e.message;retry.hidden=false}}
+retry.addEventListener('click',start);start();
+</script>
+</body>
+</html>
