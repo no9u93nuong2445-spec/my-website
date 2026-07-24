@@ -1,0 +1,46 @@
+name: Initialize repository
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".bootstrap/**"
+      - ".github/workflows/bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: initialize-repository
+  cancel-in-progress: false
+
+jobs:
+  initialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and extract project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find .bootstrap -maxdepth 1 -name 'part-*.txt' | wc -l)" -eq 24
+          cat .bootstrap/part-*.txt | base64 --decode > /tmp/heart-training.tar.gz
+          tar -tzf /tmp/heart-training.tar.gz >/dev/null
+          tar -xzf /tmp/heart-training.tar.gz
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap.yml
+
+      - name: Commit initialized project
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "发布心动训练营 V2.0 网页版与 Android App" || exit 0
+          git push
