@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="心动训练营图标">
+  <rect width="512" height="512" rx="112" fill="#7c3aed"/>
+  <path d="M256 410C223 382 123 317 123 219c0-66 76-105 133-47 57-58 133-19 133 47 0 98-100 163-133 191Z" fill="#fff"/>
+  <path d="M185 235c20-24 43-32 71-9 28-23 51-15 71 9" fill="none" stroke="#7c3aed" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="215" cy="278" r="13" fill="#7c3aed"/>
+  <circle cx="297" cy="278" r="13" fill="#7c3aed"/>
+  <path d="M211 322c28 25 62 25 90 0" fill="none" stroke="#7c3aed" stroke-width="16" stroke-linecap="round"/>
+</svg>
