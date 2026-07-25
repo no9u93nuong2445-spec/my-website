@@ -24,7 +24,7 @@
     <h1>心动训练营 V2.0</h1>
     <p id="msg">正在读取离线训练程序……</p>
     <div class="bar"><i id="progress"></i></div>
-    <small>训练内容加载完成后，关卡进度和聊天数据只保存在你的浏览器本地。</small>
+    <small>首次载入会读取12个程序分块。进入训练后，关卡进度和聊天数据只保存在你的浏览器本地。</small>
     <button id="retry" type="button" hidden>重新载入</button>
   </main>
 <script>
@@ -32,25 +32,53 @@ const msg=document.querySelector('#msg');
 const bar=document.querySelector('#progress');
 const retry=document.querySelector('#retry');
 
+function decodePart(value){
+  const clean=value.replace(/\s/g,'');
+  const raw=atob(clean);
+  return Uint8Array.from(raw,char=>char.charCodeAt(0));
+}
+
 async function start(){
   retry.hidden=true;
   try{
     if(!('DecompressionStream' in window)){
       throw new Error('浏览器版本过旧，请升级 Chrome、Edge 或 Safari 后再打开');
     }
-    msg.textContent='正在下载离线训练程序……';
-    bar.style.width='35%';
-    const response=await fetch('webdata/app.html.gz?v=2001',{cache:'no-store'});
-    if(!response.ok) throw new Error('程序文件读取失败（HTTP '+response.status+'）');
-    const compressed=await response.arrayBuffer();
-    if(compressed.byteLength<50000) throw new Error('程序文件不完整，请稍后刷新重试');
+
+    const chunks=[];
+    let total=0;
+    for(let i=1;i<=12;i++){
+      msg.textContent=`正在读取离线训练程序 ${i}/12……`;
+      bar.style.width=`${10+Math.round(i/12*65)}%`;
+      const name=`webdata/part-${String(i).padStart(2,'0')}.txt?v=2002`;
+      const response=await fetch(name,{cache:'no-store'});
+      if(!response.ok){
+        throw new Error(`程序分块 ${i} 读取失败（HTTP ${response.status}）`);
+      }
+      const bytes=decodePart(await response.text());
+      chunks.push(bytes);
+      total+=bytes.length;
+    }
+
+    const compressed=new Uint8Array(total);
+    let offset=0;
+    for(const bytes of chunks){
+      compressed.set(bytes,offset);
+      offset+=bytes.length;
+    }
+    if(compressed.byteLength<90000){
+      throw new Error('程序文件不完整，请稍后刷新重试');
+    }
+
     msg.textContent='正在解压训练内容……';
-    bar.style.width='75%';
+    bar.style.width='82%';
     const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
-    const html=await new Response(stream).text();
+    let html=await new Response(stream).text();
     if(!html.includes('<html')||!html.includes('心动训练营')){
       throw new Error('训练页面校验失败');
     }
+
+    html=html.replace('</head>','<link rel="manifest" href="./manifest.json"><meta name="apple-mobile-web-app-capable" content="yes"></head>');
     msg.textContent='载入完成';
     bar.style.width='100%';
     setTimeout(()=>{
@@ -64,6 +92,7 @@ async function start(){
     retry.hidden=false;
   }
 }
+
 retry.addEventListener('click',start);
 start();
 </script>
