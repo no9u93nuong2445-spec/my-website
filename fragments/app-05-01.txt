@@ -1,0 +1,156 @@
+      memories: ["看到你说不爱早起，我怀疑周末的你和闹钟关系不太好。我也属于能多睡十分钟绝不早起的人。", "你资料里那家甜品店看起来不错，是成都的吗？"],
+      replies: {
+        positive: ["哈哈，被你发现了，我周末基本中午才起。", "对，我还挺喜欢找新店的。你也会到处探店吗？"],
+        neutral: ["还行吧。", "哈哈，是吗。"],
+        negative: ["你问题有点多哦。", "刚认识就问这么细吗？"],
+        boundary: ["我不太喜欢刚认识就这样聊。"]
+      }
+    }
+  ];
+
+
+  const PLAYER_RANKS = [
+    { min: 1, title: "开场新手" },
+    { min: 3, title: "接话练习生" },
+    { min: 5, title: "自然聊天者" },
+    { min: 8, title: "氛围建立者" },
+    { min: 12, title: "分寸掌握者" },
+    { min: 16, title: "稳定沟通者" },
+    { min: 22, title: "成熟表达者" },
+    { min: 28, title: "关系判断者" },
+    { min: 35, title: "稳定沟通教练" }
+  ];
+
+  const ACHIEVEMENTS = {
+    firstStep: { title: "迈出第一步", desc: "发送第一句训练消息", icon: "🌱" },
+    firstPass: { title: "首次通关", desc: "第一次通过正式关卡", icon: "🏁" },
+    threeStar: { title: "漂亮通关", desc: "获得一次三星评价", icon: "⭐" },
+    noInterrogation: { title: "不是采访", desc: "通关且整局没有连续提问", icon: "💬" },
+    respectBoundary: { title: "尊重边界", desc: "正确接受一次明确拒绝", icon: "🛡️" },
+    chapterGraduate: { title: "章节毕业", desc: "完成任意章节的全部五关", icon: "🎓" },
+    tenLevels: { title: "渐入佳境", desc: "累计通过10个正式关卡", icon: "🚀" },
+    hundredMessages: { title: "百句训练", desc: "累计发送100句训练消息", icon: "💯" },
+    streakThree: { title: "连续训练", desc: "连续3天完成训练", icon: "🔥" },
+    mistakeBreaker: { title: "打破旧习惯", desc: "完成一次错题专项重练", icon: "🔧" },
+    foundationGraduate: { title: "基础篇毕业", desc: "完成前30个正式关卡", icon: "🎖️" },
+    allLevels: { title: "正式版毕业", desc: "完成全部45个正式关卡", icon: "🏆" }
+  };
+
+  const ISSUE_LEVEL_MAP = {
+    pressure: [3, 11, 12, 20, 29], interrogation: [4, 17, 22], noShare: [4, 6, 21],
+    genericOpener: [1, 16, 18], topicJump: [3, 19], forcedHumor: [8, 19], coldReply: [3, 17, 20],
+    overIntimacy: [9, 24, 35, 41], mindReading: [35, 41, 45], gamePlaying: [34, 39], scorekeeping: [25, 42, 45], generic: [1, 18, 23], vagueInvite: [13, 26, 27], adviceRush: [7, 23],
+    disrespect: [15, 28, 29, 30], overPraise: [9, 22], overExplain: [24, 30], tooLong: [4, 23], tooShort: [3, 17]
+  };
+
+  const CHAPTER_SUMMARIES = {
+    1: "你已经掌握基础开场、接话和自然收尾。下一步要让表达更有个人内容。",
+    2: "你能通过分享、共情和轻松互动建立熟悉感。继续练习稳定输出，而不是偶尔灵光一现。",
+    3: "你开始能分辨回复节奏、关系投入和邀约时机。真正成熟的表现是不给对方压力。",
+    4: "你能处理资料少、短回复和冷场场景，也知道什么时候换话题、什么时候止损。",
+    5: "你不再只做倾听者，能够展示自己、具体欣赏对方，并坦诚表达兴趣。",
+    6: "你完成了邀约、改期、见面边界和拒绝处理训练。结果不一定如愿，但表达可以始终体面。",
+    7: "你能在轻松互动中保持真实，不靠表演、贬低或猜心制造所谓暧昧。",
+    8: "你开始用清楚表达、道歉、协商和一致行动处理成熟关系中的现实问题。",
+    9: "你能够区分友好与恋爱兴趣，也能在单向投入时保护自己并体面退出。"
+  };
+
+
+  const ABILITY_DIMENSIONS = {
+    opening: {
+      label: "自然开场", short: "开场", desc: "利用资料或场景开启话题，而不是只发通用问候。",
+      strengths: ["relevant", "openQuestion", "balanced"], issues: ["genericOpener", "tooShort", "interrogation"], chapters: [1, 4], levels: [1, 2, 16, 17, 18]
+    },
+    continuity: {
+      label: "接话延续", short: "接话", desc: "接住上一句话、留下回应空间，并在冷场时合理换题。",
+      strengths: ["relevant", "openQuestion", "balanced", "humor"], issues: ["topicJump", "coldReply", "generic", "interrogation", "mindReading"], chapters: [1, 2, 4], levels: [3, 6, 8, 18, 19]
+    },
+    sharing: {
+      label: "展示自己", short: "分享", desc: "不只提问或倾听，也能自然表达自己的经历和态度。",
+      strengths: ["share", "balanced", "interestSignal"], issues: ["noShare", "overExplain", "tooLong", "scorekeeping"], chapters: [2, 5], levels: [4, 6, 21, 24, 25]
+    },
+    empathy: {
+      label: "情绪回应", short: "共情", desc: "先理解对方的情绪和需求，再决定陪伴、提问或给建议。",
+      strengths: ["empathy", "respect", "apology"], issues: ["adviceRush", "generic", "pressure"], chapters: [2, 5], levels: [7, 10, 22, 23]
+    },
+    boundary: {
+      label: "分寸边界", short: "分寸", desc: "尊重回复节奏、拒绝和见面边界，避免催促与过早亲密。",
+      strengths: ["respect", "ending"], issues: ["pressure", "disrespect", "overIntimacy", "selfDegrade", "gamePlaying", "scorekeeping"], chapters: [3, 4, 6], levels: [11, 12, 15, 20, 28, 29, 30, 36, 38, 40, 42, 43, 44, 45]
+    },
+    progression: {
+      label: "表达推进", short: "推进", desc: "具体表达欣赏和兴趣，并在合适时机提出清楚、有退路的邀约。",
+      strengths: ["interestSignal", "specificCompliment", "concreteInvite", "respect"], issues: ["vagueInvite", "overPraise", "overIntimacy", "pressure"], chapters: [3, 5, 6], levels: [10, 13, 22, 24, 26, 27, 34, 37, 39]
+    }
+  };
+
+  const ISSUE_COACHING = {
+    pressure: "先把注意力从回复速度移回内容本身，发完一条后允许对方按自己的节奏回应。",
+    interrogation: "把多个问题删到只剩一个，并在问题前先加入一句自己的相关经历。",
+    noShare: "每次提问前先贡献一点自己的信息，让对话从采访变成交换。",
+    genericOpener: "从她的资料、当前场景或一个具体观察入手，避免任何人都能收到的开场。",
+    topicJump: "先用一句回应接住上一话题，再用过渡句换题，不要突然另起一章。",
+    forcedHumor: "玩笑必须建立在当前内容上；不确定时，清楚回应比硬抖机灵更好。",
+    coldReply: "至少补充一个态度、细节或容易回应的点，不要只回‘哈哈’‘嗯’。",
+    overIntimacy: "把亲密称呼和关系定义往后放，先靠持续、舒服的互动建立熟悉感。",
+    generic: "减少模板句，直接引用她刚才说过的具体信息。",
+    vagueInvite: "说清大致时间、活动和退出空间，例如‘周六下午喝咖啡，忙的话改天’。",
+    adviceRush: "先确认她是想倾诉还是想听建议，别急着接管问题。",
+    disrespect: "明确拒绝就是停止推进的信号；成熟沟通不以说服对方为目标。",
+    overPraise: "把夸奖落到一个具体细节，避免‘女神、完美、全世界最好’等夸张表达。",
+    overExplain: "保留核心态度，删掉反复澄清和自证，让一句话更轻。",
+    tooLong: "一条消息只保留一个重点；能删掉的背景解释先删掉。",
+    tooShort: "补充一个真实态度或细节，给对方至少一个可以接住的材料。",
+    mindReading: "以对方明确表达和持续行动为准，不要把礼貌、表情或接梗自动解释成喜欢。",
+    gamePlaying: "直接表达需求和安排，不用故意冷处理、测试或隐藏信息制造不安。",
+    scorekeeping: "帮助和付出必须自愿且有边界，不能事后拿来要求感情、机会或陪伴。"
+  };
+
+  let startupDataNotice = "";
+  let lockConfig = loadLockConfig();
+  let appUnlocked = !lockConfig.enabled;
+  let failedUnlockAttempts = 0;
+  let hiddenAt = 0;
+  const state = loadState();
+  const startupChapterUpdates = updateChapterAwards();
+  const startupAchievements = checkAchievements();
+  if (startupChapterUpdates.length || startupAchievements.length) saveState();
+  let currentView = "home";
+  let activeCourseId = null;
+  let activeCourseFeedback = null;
+  let session = null;
+  let deferredInstallPrompt = null;
+  let onboardingStep = 0;
+  let onboardingShownThisLoad = false;
+
+  const mainView = document.getElementById("mainView");
+  const dialog = document.getElementById("resultDialog");
+  const resultContent = document.getElementById("resultContent");
+  const retryBtn = document.getElementById("retryBtn");
+  const installBtn = document.getElementById("installBtn");
+  const onboardingDialog = document.getElementById("onboardingDialog");
+  const onboardingContent = document.getElementById("onboardingContent");
+  const onboardingNextBtn = document.getElementById("onboardingNextBtn");
+  const onboardingSkipBtn = document.getElementById("onboardingSkipBtn");
+  const onboardingDots = document.getElementById("onboardingDots");
+  const lockDialog = document.getElementById("lockDialog");
+  const unlockForm = document.getElementById("unlockForm");
+  const unlockPassword = document.getElementById("unlockPassword");
+  const unlockError = document.getElementById("unlockError");
+
+  function defaultState() {
+    return {
+      meta: {
+        schemaVersion: DATA_SCHEMA_VERSION,
+        lastOpenedVersion: APP_VERSION,
+        lastMigrationAt: null
+      },
+      unlocked: 1,
+      levels: {},
+      stats: {
+        totalMessages: 0,
+        totalSessions: 0,
+        scoreSum: 0,
+        issues: {},
+        strengths: {},
+        lastPlayed: null
+      },
