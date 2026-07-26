@@ -1,0 +1,142 @@
+      references: ["听起来今天够折腾的。你是想吐槽一下，还是想一起理理怎么处理？"],
+      replies: {
+        positive: ["我现在主要就是想吐槽一下。", "谢谢，先让我说两句就好。"],
+        neutral: ["嗯，有点烦。", "先这样吧。"],
+        negative: ["我现在不太想听大道理。", "你先别急着教我怎么做。"],
+        boundary: ["我想自己安静一会儿。"]
+      }
+    },
+    {
+      id: 8, chapter: 2, no: "2-3", title: "兴趣不同也能聊", character: "suyan",
+      intro: "她喜欢画画，而你对绘画不了解。",
+      objective: "诚实表达不了解，但保持好奇，不能装懂。",
+      opening: "我最近在练一套新的画法，效果还不太稳定。",
+      minTurns: 5, maxTurns: 8, targetAvg: 69,
+      required: { honestCuriosity: 1, relevant: 2 },
+      hints: ["不了解没关系，装懂才容易翻车。", "可以问她最享受哪个环节。"],
+      references: ["我对画画不太懂，不过‘效果不稳定’听起来像在试新的风格。你自己最满意的是哪一部分？"],
+      replies: {
+        positive: ["对，我在试新的光影方式。", "我最喜欢上色，那个过程比较放松。"],
+        neutral: ["还在试。", "差不多吧。"],
+        negative: ["你都没看过就说很专业，有点假。", "不用装懂啦。"],
+        boundary: ["这个我暂时不想展示。"]
+      }
+    },
+    {
+      id: 9, chapter: 2, no: "2-4", title: "轻松幽默，不要油腻", character: "linxia",
+      intro: "她说自己周末睡到中午。",
+      objective: "完成一次轻松玩笑，不能评价身材、外貌或进行冒犯。",
+      opening: "我今天睡到中午，感觉半天都没了。",
+      minTurns: 5, maxTurns: 8, targetAvg: 70,
+      required: { humor: 1, respect: 1 },
+      hints: ["幽默最好来自当前话题，不要靠冒犯。", "可以调侃‘和床合作’之类的场景。"],
+      references: ["你只是把上午外包给了睡眠，下午才正式营业。"],
+      replies: {
+        positive: ["哈哈哈，下午营业这个说法可以。", "没错，我和床合作得很愉快。"],
+        neutral: ["哈哈。", "是吧。"],
+        negative: ["这个玩笑有点冒犯。", "你为什么要评价我？"],
+        boundary: ["别拿这种事情开玩笑。"]
+      }
+    },
+    {
+      id: 10, chapter: 2, no: "2-5", title: "表达欣赏但不猛夸", character: "suyan",
+      intro: "她给你看了一张自己画的作品。",
+      objective: "夸具体内容，不连续夸外貌或使用夸张称呼。",
+      opening: "这是我昨天画完的一张。",
+      minTurns: 5, maxTurns: 8, targetAvg: 71,
+      required: { specificCompliment: 1, relevant: 2 },
+      hints: ["具体夸作品比‘你好厉害’更真诚。", "夸完给她空间，不要立刻转成暧昧。"],
+      references: ["这张的光线让我觉得很安静，人物表情也有点故事感。你画的时候有参考某个场景吗？"],
+      replies: {
+        positive: ["谢谢，你有注意到光线，我确实想画得安静一点。", "有参考我之前散步看到的场景。"],
+        neutral: ["谢谢。", "嗯，有一点。"],
+        negative: ["你都没说哪里好。", "不用这么夸张啦。"],
+        boundary: ["我们先聊作品就好。"]
+      }
+    },
+    {
+      id: 11, chapter: 3, no: "3-1", title: "她回复慢，不要催", character: "zhouning",
+      intro: "她隔了大半天才回复，但内容正常。",
+      objective: "不质问回复速度，继续当前话题或自然开启新话题。",
+      opening: "刚忙完，之前说的那家店我查了，周末应该不用排太久。",
+      minTurns: 4, maxTurns: 7, targetAvg: 72,
+      required: { noPressure: 1, relevant: 2 },
+      hints: ["回复慢和没兴趣不是同一件事。", "看内容投入，而不是只看时间。"],
+      references: ["辛苦，忙完就好。那家店不用排太久挺加分，我最怕把约会变成排队训练。"],
+      replies: {
+        positive: ["哈哈，我也不喜欢排队。", "对，所以我提前看了一下。"],
+        neutral: ["嗯。", "还好。"],
+        negative: ["我工作忙，不会一直看手机。", "不用一直问我为什么不回。"],
+        boundary: ["如果你很介意回复速度，我们可能不太合适。"]
+      }
+    },
+    {
+      id: 12, chapter: 3, no: "3-2", title: "判断投入，不强行推进", character: "suyan",
+      intro: "她持续短回复，也没有主动提问。",
+      objective: "尝试一次新话题；若仍冷淡，主动降低频率或收尾。",
+      opening: "嗯。",
+      minTurns: 1, maxTurns: 3, targetAvg: 68,
+      required: { ending: 1, noPressure: 1 },
+      hints: ["投入长期不对等时，停止用力也是能力。", "不要靠连续信息制造回应。"],
+      references: ["感觉你今天状态不太适合聊天，那你先忙，改天有心情再聊。"],
+      replies: {
+        positive: ["好，谢谢理解。", "嗯，今天确实不太想聊天。"],
+        neutral: ["好。", "嗯。"],
+        negative: ["不用一直追着问。", "我没有什么想说的。"],
+        boundary: ["我想先结束聊天。"]
+      }
+    },
+    {
+      id: 13, chapter: 3, no: "3-3", title: "第一次轻量邀约", character: "linxia",
+      intro: "你们聊过几次探店，她也会主动回复。",
+      objective: "提出具体但有空间的邀约，包含活动和大致时间。",
+      opening: "你上次说的那家甜品店，我今天又刷到了。",
+      minTurns: 5, maxTurns: 8, targetAvg: 73,
+      required: { invite: 1, concreteInvite: 1 },
+      hints: ["邀约要具体：做什么、大概什么时候。", "不要用‘有空出来玩’这种过于模糊的表达。"],
+      references: ["这周六下午我准备去试试，你要是有空可以一起。没空也没关系。"],
+      replies: {
+        positive: ["可以啊，周六下午我应该有空。", "好呀，正好我也想去。"],
+        neutral: ["我看下时间。", "周末可能有事。"],
+        negative: ["你一直追着问时间，我有点压力。", "现在就确定关系也太快了吧。"],
+        boundary: ["我暂时不想单独见面。"]
+      }
+    },
+    {
+      id: 14, chapter: 3, no: "3-4", title: "模糊拒绝后的处理", character: "zhouning",
+      intro: "你提出周末喝咖啡，她说最近比较忙，没有给替代时间。",
+      objective: "不追问具体原因，不连续邀约，给出空间。",
+      opening: "最近项目比较忙，周末可能不太方便。",
+      minTurns: 1, maxTurns: 3, targetAvg: 68,
+      required: { acceptUncertainty: 1, noPressure: 1 },
+      hints: ["没有替代时间时，不要马上追问下周。", "可以先正常回应，把选择权交还给她。"],
+      references: ["明白，那你先忙项目。等你之后时间宽松一点再说。"],
+      replies: {
+        positive: ["好，谢谢理解。", "等忙完我再跟你说。"],
+        neutral: ["嗯。", "好。"],
+        negative: ["我已经说最近没时间了。", "不用一直确认具体哪天。"],
+        boundary: ["我暂时不考虑见面。"]
+      }
+    },
+    {
+      id: 15, chapter: 3, no: "3-5", title: "明确拒绝也能通关", character: "suyan",
+      intro: "她明确说只想做普通朋友。",
+      objective: "尊重拒绝，不说服、不自我贬低、不要求解释。",
+      opening: "我认真想过了，我更希望我们就做普通朋友。",
+      minTurns: 1, maxTurns: 3, targetAvg: 78,
+      required: { respectRejection: 1 },
+      hints: ["这关的成功不是改变她的想法。", "真正的通关是体面接受并保护自己的边界。"],
+      references: ["我明白了，谢谢你说清楚。我尊重你的想法，也会调整好自己的期待。"],
+      replies: {
+        positive: ["谢谢你理解。", "嗯，我也希望我们都轻松一点。"],
+        neutral: ["好。", "谢谢。"],
+        negative: ["我已经说得很清楚了。", "请不要继续说服我。"],
+        boundary: ["请尊重我的决定，不要再继续这个话题。"]
+      }
+    }
+  ];
+
+
+  LEVELS.push(
+    {
+      id: 16, chapter: 4, no: "4-1", title: "资料几乎为空", character: "linxia",
