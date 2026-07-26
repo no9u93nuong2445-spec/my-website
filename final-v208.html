@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#7c3aed">
+<title>心动训练营 V2.0</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#21163d;background:#f6f3ff}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center}.box{width:min(620px,calc(100% - 32px));padding:28px;border-radius:24px;background:white;box-shadow:0 16px 50px #5b21b622}h1{margin:0 0 18px;font-size:clamp(28px,7vw,40px)}#msg{line-height:1.65;word-break:break-word}.bar{height:10px;background:#e9ddff;border-radius:99px;overflow:hidden}.bar i{display:block;width:5%;height:100%;background:#7c3aed;transition:width .2s}small{display:block;margin-top:18px;color:#70778a;line-height:1.6}button{margin-top:16px;padding:12px 18px;border:0;border-radius:12px;background:#7c3aed;color:#fff;font-size:16px;font-weight:700}
+</style>
+</head><body><main class="box"><h1>心动训练营 V2.0</h1><p id="msg">正在读取完整程序……</p><div class="bar"><i id="bar"></i></div><small>本入口会直接从仓库内的完整离线包恢复程序，不使用旧版网页分块格式。</small><button id="retry" hidden>重新打开</button></main>
+<script>
+const msg=document.getElementById('msg'),bar=document.getElementById('bar'),retry=document.getElementById('retry');
+const td=new TextDecoder('utf-8');
+function fail(text){throw new Error(text)}
+function clean64(s){return s.replace(/\s/g,'')}
+function b64(s){const raw=atob(clean64(s));return Uint8Array.from(raw,c=>c.charCodeAt(0))}
+function concat(list){const n=list.reduce((a,b)=>a+b.length,0),out=new Uint8Array(n);let p=0;for(const x of list){out.set(x,p);p+=x.length}return out}
+function isGzip(b){return b&&b.length>2&&b[0]===0x1f&&b[1]===0x8b}
+function isHtmlText(s){return /^\s*<!doctype html/i.test(s)&&/<html[\s>]/i.test(s)&&s.includes('心动训练营')&&s.includes('</html>')}
+function validApp(s){return isHtmlText(s)&&s.length>200000&&s.includes('const TOTAL_LEVELS = 45')&&s.includes('自由练习')&&s.includes('课程')&&s.includes('报告')&&s.includes('设置')}
+async function gunzip(bytes){return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())}
+function textAt(bytes,start,len){let end=start;while(end<start+len&&bytes[end])end++;return td.decode(bytes.slice(start,end)).trim()}
+function octal(bytes,start,len){const s=textAt(bytes,start,len).replace(/\0/g,'').trim();return s?parseInt(s,8):0}
+function parseTar(bytes){const files=new Map();let p=0;while(p+512<=bytes.length){const h=bytes.slice(p,p+512);if(h.every(v=>v===0))break;let name=textAt(h,0,100),prefix=textAt(h,345,155);if(prefix)name=prefix+'/'+name;const size=octal(h,124,12);const type=String.fromCharCode(h[156]||48);const start=p+512,end=start+size;if(end>bytes.length)break;if(type==='0'||type==='\0')files.set(name.replace(/^\.\//,''),bytes.slice(start,end));p=start+Math.ceil(size/512)*512}return files}
+function findFile(files,path,base=''){const clean=path.split(/[?#]/)[0].replace(/^\.\//,'');const candidates=[base+clean,clean];for(const c of candidates)if(files.has(c))return files.get(c);for(const [name,data] of files)if(name.endsWith('/'+clean)||name===clean)return data;return null}
+function rebuildFromTar(files){let best='';for(const [name,data] of files){if(!/\.html?$/i.test(name))continue;let s;try{s=td.decode(data)}catch{continue}if(validApp(s)&&s.length>best.length)best=s}if(best)return best;let indexName='',index='';for(const [name,data] of files){if(!/(^|\/)index\.html?$/i.test(name))continue;const s=td.decode(data);if(s.includes('id="app"')||s.includes('mainView')){indexName=name;index=s;break}}if(!index)return '';const base=indexName.includes('/')?indexName.slice(0,indexName.lastIndexOf('/')+1):'';index=index.replace(/<link\b[^>]*href=["']([^"']+\.css(?:[?#][^"']*)?)["'][^>]*>/gi,(all,path)=>{const d=findFile(files,path,base);return d?`<style>${td.decode(d)}</style>`:all});index=index.replace(/<script\b[^>]*src=["']([^"']+\.js(?:[?#][^"']*)?)["'][^>]*>\s*<\/script>/gi,(all,path)=>{const d=findFile(files,path,base);return d?`<script>${td.decode(d)}<\/script>`:all});return validApp(index)?index:''}
+async function bytesToApp(bytes){let data=bytes;if(isGzip(data)){try{data=await gunzip(data)}catch{return ''}}try{const direct=td.decode(data);if(validApp(direct))return direct}catch{}const files=parseTar(data);return files.size?rebuildFromTar(files):''}
+async function decodeParts(parts){const candidates=[];try{candidates.push(b64(parts.join('')))}catch{}try{candidates.push(concat(parts.map(b64)))}catch{}for(const c of candidates){const app=await bytesToApp(c);if(app)return app}return ''}
+async function readSet(prefix,count,pad,start=0){const parts=[];for(let i=0;i<count;i++){msg.textContent=`正在读取程序文件 ${i+1}/${count}……`;bar.style.width=`${8+Math.round((i+1)/count*62)}%`;const n=String(i+start).padStart(pad,'0');const r=await fetch(`${prefix}${n}.txt?v=208`,{cache:'no-store'});if(!r.ok)throw new Error(`文件 ${n} 读取失败（HTTP ${r.status}）`);const s=clean64(await r.text());if(!s||!/^[A-Za-z0-9+/=]+$/.test(s))throw new Error(`文件 ${n} 内容损坏`);parts.push(s)}return parts}
+async function start(){retry.hidden=true;try{if(!('DecompressionStream'in window))fail('浏览器版本过旧，请升级 Chrome 或 Edge');let app='';const direct=await fetch('./心动训练营_离线单文件版_V2.0.html?v=208',{cache:'no-store'}).catch(()=>null);if(direct&&direct.ok){const s=await direct.text();if(validApp(s))app=s}if(!app){try{app=await decodeParts(await readSet('.bootstrap/part-',24,3,0))}catch(e){console.warn('主离线包读取失败',e)}}if(!app){try{app=await decodeParts(await readSet('webdata/part-',12,2,1))}catch(e){console.warn('备用离线包读取失败',e)}}if(!app)fail('仓库离线包无法恢复完整程序');msg.textContent='程序校验通过，正在进入……';bar.style.width='100%';app=app.replace('</head>','<link rel="manifest" href="./manifest.json?v=208"><meta name="apple-mobile-web-app-capable" content="yes"></head>');setTimeout(()=>{document.open();document.write(app);document.close()},80)}catch(e){console.error(e);msg.textContent='启动失败：'+(e.message||e);retry.hidden=false}}
+retry.onclick=()=>location.reload();start();
+</script></body></html>
