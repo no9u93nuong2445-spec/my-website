@@ -1,0 +1,137 @@
+name: Materialize and verify direct web app
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/materialize-direct.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-direct-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore complete web project from offline archive
+        shell: python
+        run: |
+          import base64
+          import gzip
+          import io
+          import json
+          import pathlib
+          import shutil
+          import tarfile
+
+          root = pathlib.Path.cwd()
+          parts = sorted((root / '.bootstrap').glob('part-*.txt'))
+          if len(parts) != 24:
+              raise SystemExit(f'Expected 24 archive parts, found {len(parts)}')
+
+          encoded = ''.join(''.join(p.read_text(encoding='ascii').split()) for p in parts)
+          archive_bytes = base64.b64decode(encoded, validate=True)
+          if archive_bytes[:2] != b'\x1f\x8b':
+              raise SystemExit('Archive is not gzip data')
+
+          tar_bytes = gzip.decompress(archive_bytes)
+          target = root / '_materialized'
+          shutil.rmtree(target, ignore_errors=True)
+          target.mkdir()
+
+          with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode='r:') as tf:
+              for member in tf.getmembers():
+                  resolved = (target / member.name).resolve()
+                  if target.resolve() not in resolved.parents and resolved != target.resolve():
+                      raise SystemExit(f'Unsafe archive path: {member.name}')
+              tf.extractall(target)
+
+          candidates = list(target.rglob('心动训练营_离线单文件版_V2.0.html'))
+          if not candidates:
+              candidates = [p for p in target.rglob('*.html') if p.stat().st_size > 300000]
+          if not candidates:
+              raise SystemExit('Complete single-file HTML was not found')
+
+          source = max(candidates, key=lambda p: p.stat().st_size)
+          html = source.read_text(encoding='utf-8')
+          required = ['const TOTAL_LEVELS = 45', '自由练习', '课程', '报告', '设置']
+          missing = [item for item in required if item not in html]
+          if len(html.encode('utf-8')) < 300000 or missing:
+              raise SystemExit(f'HTML verification failed, missing={missing}, bytes={len(html.encode("utf-8"))}')
+
+          manifest_link = '<link rel="manifest" href="./manifest.json?v=210">'
+          if 'rel="manifest"' not in html:
+              html = html.replace('</head>', manifest_link + '</head>')
+          root.joinpath('index.html').write_text(html, encoding='utf-8')
+
+          manifest = {
+              'name': '心动训练营 V2.0',
+              'short_name': '心动训练营',
+              'description': '完全离线的恋爱沟通与聊天闯关训练工具',
+              'lang': 'zh-CN',
+              'start_url': './',
+              'scope': './',
+              'display': 'standalone',
+              'background_color': '#f6f3ff',
+              'theme_color': '#7c3aed',
+              'orientation': 'portrait-primary',
+              'icons': [{'src':'./icon.svg','sizes':'any','type':'image/svg+xml','purpose':'any maskable'}]
+          }
+          root.joinpath('manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          sw = """const CACHE='heart-training-direct-v210';
+          const CORE=['./','./index.html','./manifest.json','./icon.svg'];
+          self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
+          self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+          self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{if(r.ok)caches.open(CACHE).then(c=>c.put(e.request,r.clone()));return r}).catch(()=>caches.match(e.request,{ignoreSearch:true}).then(r=>r||caches.match('./index.html'))))});
+          """
+          root.joinpath('sw.js').write_text(sw, encoding='utf-8')
+
+          verify = {
+              'mode': 'direct-single-html',
+              'source': str(source.relative_to(target)),
+              'html_bytes': len(html.encode('utf-8')),
+              'levels': 45,
+              'archive_parts': len(parts)
+          }
+          root.joinpath('DEPLOY_VERIFIED.json').write_text(json.dumps(verify, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+      - name: Start local web server
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/heart-http.log 2>&1 &
+          echo $! > /tmp/heart-http.pid
+          sleep 2
+
+      - name: Open with real Chrome and verify rendered application
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --virtual-time-budget=8000 --dump-dom http://127.0.0.1:8765/ > /tmp/rendered.html
+          grep -q '心动训练营' /tmp/rendered.html
+          grep -q '自由练习' /tmp/rendered.html
+          grep -q '课程' /tmp/rendered.html
+          grep -q '报告' /tmp/rendered.html
+          grep -q '设置' /tmp/rendered.html
+          LEVEL_COUNT="$(grep -o 'class="level-card' /tmp/rendered.html | wc -l | tr -d ' ')"
+          echo "Rendered levels: $LEVEL_COUNT"
+          test "$LEVEL_COUNT" -eq 45
+          test "$(grep -o 'class="nav-item' /tmp/rendered.html | wc -l | tr -d ' ')" -eq 5
+
+      - name: Commit only after browser verification succeeds
+        run: |
+          rm -rf _materialized
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html manifest.json sw.js DEPLOY_VERIFIED.json
+          if git diff --cached --quiet; then
+            echo 'Direct application already materialized and verified.'
+          else
+            git commit -m '部署经浏览器验证的完整单文件网页 [skip ci]'
+            git push
+          fi
