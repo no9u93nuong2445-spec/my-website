@@ -1,0 +1,9 @@
+include:
+  - .bootstrap
+exclude:
+  - webdata
+  - fragments
+  - app-v2-final.html
+  - app-bootstrap-v206.js
+  - app-data-v206-01.js
+  - materialize-direct.yml
