@@ -1,0 +1,180 @@
+name: Verify live V2.12
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'index.html'
+      - '_config.yml'
+      - 'manifest.json'
+      - 'sw.js'
+      - '.bootstrap/**'
+      - '.github/workflows/verify-live-v212.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: verify-live-v212
+  cancel-in-progress: true
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_URL: https://no9u93nuong2445-spec.github.io/my-website/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install browser driver
+        run: npm install --no-save --no-package-lock playwright-core@1.54.2
+
+      - name: Wait for Pages and run real browser test
+        id: browser_test
+        continue-on-error: true
+        run: |
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          export CHROME
+          node <<'NODE'
+          const fs = require('fs');
+          const { chromium } = require('playwright-core');
+          const liveUrl = process.env.LIVE_URL;
+          const result = {
+            status: 'failed',
+            release: '212',
+            url: liveUrl,
+            checked_at: new Date().toISOString(),
+            checks: {},
+            error: null
+          };
+
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+          async function waitForPublishedVersion() {
+            let last = '';
+            for (let attempt = 1; attempt <= 36; attempt += 1) {
+              try {
+                const stamp = Date.now();
+                const [home, lastPart] = await Promise.all([
+                  fetch(`${liveUrl}?verify=${stamp}`, { cache: 'no-store' }),
+                  fetch(`${liveUrl}.bootstrap/part-023.txt?verify=${stamp}`, { cache: 'no-store' })
+                ]);
+                const html = await home.text();
+                const part = await lastPart.text();
+                last = `首页HTTP ${home.status}，末段HTTP ${lastPart.status}，首页${html.length}字节，末段${part.length}字节`;
+                if (home.ok && lastPart.ok && html.includes("const RELEASE = '212'") && part.replace(/\s+/g, '').length > 100) {
+                  result.checks.pages_published = last;
+                  return;
+                }
+              } catch (error) {
+                last = error.message;
+              }
+              await sleep(10000);
+            }
+            throw new Error(`等待GitHub Pages发布超时：${last}`);
+          }
+
+          async function run() {
+            await waitForPublishedVersion();
+            const browser = await chromium.launch({
+              executablePath: process.env.CHROME,
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            const context = await browser.newContext({
+              viewport: { width: 390, height: 844 },
+              serviceWorkers: 'block'
+            });
+            const page = await context.newPage();
+            const errors = [];
+            page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
+            page.on('console', message => {
+              if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+            });
+
+            await page.goto(`${liveUrl}?verify=${Date.now()}`, {
+              waitUntil: 'domcontentloaded',
+              timeout: 120000
+            });
+            await page.waitForFunction(() => document.querySelectorAll('.level-card').length === 45, null, { timeout: 120000 });
+            result.checks.level_cards = await page.locator('.level-card').count();
+            result.checks.navigation_items = await page.locator('.nav-item').count();
+
+            const onboarding = page.locator('#onboardingDialog[open]');
+            if (await onboarding.count()) await page.locator('#onboardingSkipBtn').click();
+
+            const views = [
+              ['free', '#startFreeBtn'],
+              ['courses', '.course-hero'],
+              ['stats', 'text=个人训练诊断'],
+              ['settings', '#themeSelect'],
+              ['home', '.level-card']
+            ];
+            for (const [view, marker] of views) {
+              await page.locator(`[data-view="${view}"]`).click();
+              await page.locator(marker).first().waitFor({ state: 'visible', timeout: 20000 });
+            }
+            result.checks.views = views.map(item => item[0]);
+
+            await page.locator('.level-card:not([disabled])').first().click();
+            await page.locator('#messageInput').waitFor({ state: 'visible', timeout: 20000 });
+            await page.locator('#messageInput').fill('看到你写不爱早起，我周末也经常睡到自然醒。你周末更喜欢探店还是宅着？');
+            await page.locator('#sendBtn').click();
+            await page.locator('.bubble-score').first().waitFor({ state: 'visible', timeout: 20000 });
+            result.checks.scored_messages = await page.locator('.bubble-score').count();
+            result.checks.her_messages = await page.locator('.message-row.her').count();
+            result.checks.mobile_overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+            result.checks.console_errors = errors;
+            await page.screenshot({ path: 'live-v212.png', fullPage: true });
+            await browser.close();
+
+            if (result.checks.level_cards !== 45) throw new Error(`关卡数量错误：${result.checks.level_cards}`);
+            if (result.checks.navigation_items !== 5) throw new Error(`导航数量错误：${result.checks.navigation_items}`);
+            if (result.checks.scored_messages < 1 || result.checks.her_messages < 2) throw new Error('发送消息后未得到完整评分或角色回复');
+            if (result.checks.mobile_overflow) throw new Error('390×844手机视口出现横向溢出');
+            if (errors.length) throw new Error(`浏览器控制台错误：${errors.join(' | ')}`);
+            result.status = 'passed';
+          }
+
+          run().catch(error => {
+            result.status = 'failed';
+            result.error = error && error.stack ? error.stack : String(error);
+          }).finally(() => {
+            result.checked_at = new Date().toISOString();
+            fs.writeFileSync('LIVE_VERIFIED.json', JSON.stringify(result, null, 2) + '\n');
+            if (result.status !== 'passed') process.exitCode = 1;
+          });
+          NODE
+
+      - name: Save verification result
+        if: always()
+        run: |
+          if [ ! -f LIVE_VERIFIED.json ]; then
+            printf '%s\n' '{"status":"failed","release":"212","error":"浏览器验收脚本未生成结果"}' > LIVE_VERIFIED.json
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add LIVE_VERIFIED.json
+          if ! git diff --cached --quiet; then
+            git commit -m '记录V2.12线上浏览器验收结果 [skip ci]'
+            git push
+          fi
+
+      - name: Upload verification screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-v212-verification
+          path: |
+            LIVE_VERIFIED.json
+            live-v212.png
+          if-no-files-found: ignore
+
+      - name: Require passing result
+        if: always()
+        run: |
+          node -e "const r=require('./LIVE_VERIFIED.json'); if(r.status!=='passed'){console.error(r.error||'线上验收失败'); process.exit(1)}"
