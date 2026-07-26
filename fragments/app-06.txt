@@ -1,0 +1,350 @@
+    merged.meta.lastOpenedVersion = APP_VERSION;
+    ensureDailyState(merged);
+    refreshStreakStatus(merged);
+    return merged;
+  }
+
+  function checksumString(text) {
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function readLocalBackups() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(item => item && typeof item === "object" && item.id && item.state).slice(0, BACKUP_LIMIT);
+    } catch {
+      return [];
+    }
+  }
+
+  function writeLocalBackups(backups) {
+    try {
+      localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups.slice(0, BACKUP_LIMIT)));
+      return true;
+    } catch (error) {
+      console.warn("写入本地备份失败", error);
+      return false;
+    }
+  }
+
+  function isBackupValid(backup) {
+    if (!backup || typeof backup !== "object" || !backup.state) return false;
+    try {
+      return !backup.checksum || backup.checksum === checksumString(JSON.stringify(backup.state));
+    } catch {
+      return false;
+    }
+  }
+
+  function createLocalBackup(reason = "手动备份", targetState = null, force = true) {
+    const source = targetState || (typeof state !== "undefined" ? state : null);
+    if (!source || typeof source !== "object") return null;
+    const backups = readLocalBackups().filter(isBackupValid);
+    const latest = backups[0];
+    if (!force && latest && latest.reason === "自动备份" && Date.now() - new Date(latest.createdAt).getTime() < AUTO_BACKUP_INTERVAL) return null;
+    const snapshot = cloneJson(source);
+    const backup = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      reason: String(reason || "本地备份").slice(0, 40),
+      appVersion: APP_VERSION,
+      schemaVersion: Number(source.meta?.schemaVersion) || 0,
+      checksum: checksumString(JSON.stringify(snapshot)),
+      state: snapshot
+    };
+    const next = [backup, ...backups.filter(item => item.checksum !== backup.checksum || item.reason !== backup.reason)].slice(0, BACKUP_LIMIT);
+    return writeLocalBackups(next) ? backup : null;
+  }
+
+  function deleteLocalBackup(backupId) {
+    const next = readLocalBackups().filter(item => item.id !== backupId);
+    return writeLocalBackups(next);
+  }
+
+  function getLatestValidBackup() {
+    return readLocalBackups().find(isBackupValid) || null;
+  }
+
+  function getStateSummary(targetState) {
+    const data = normalizeStateData(targetState || {});
+    const completed = Object.values(data.levels || {}).filter(item => item?.completed).length;
+    const courses = Object.keys(data.game.learning?.completed || {}).filter(key => data.game.learning.completed[key]).length;
+    return {
+      completed,
+      unlocked: data.unlocked,
+      xp: data.game.xp,
+      history: data.game.trainingHistory.length,
+      courses,
+      activeSession: Boolean(data.game.activeSession)
+    };
+  }
+
+  function buildExportEnvelope(targetState = state) {
+    const snapshot = cloneJson(targetState);
+    return {
+      format: EXPORT_FORMAT,
+      appVersion: APP_VERSION,
+      schemaVersion: DATA_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      checksum: checksumString(JSON.stringify(snapshot)),
+      state: snapshot
+    };
+  }
+
+  function parseImportedPayload(payload) {
+    if (!payload || typeof payload !== "object") throw new Error("文件内容不是有效的数据对象。");
+    let imported = payload;
+    if (payload.format === EXPORT_FORMAT) {
+      if (!payload.state || typeof payload.state !== "object") throw new Error("备份文件缺少训练数据。");
+      const actual = checksumString(JSON.stringify(payload.state));
+      if (payload.checksum && payload.checksum !== actual) throw new Error("文件校验失败，内容可能损坏或被修改。");
+      imported = payload.state;
+    }
+    if (!imported.stats && !imported.game && !imported.levels) throw new Error("这不是心动训练营的有效备份文件。");
+    return normalizeStateData(imported);
+  }
+
+  function replaceState(nextState) {
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, normalizeStateData(nextState));
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const fresh = defaultState();
+      ensureDailyState(fresh);
+      return fresh;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const previousSchema = Number(parsed?.meta?.schemaVersion) || 0;
+      if (previousSchema < DATA_SCHEMA_VERSION) {
+        createLocalBackup(`升级前备份 V${parsed?.meta?.lastOpenedVersion || "旧版"}→V${APP_VERSION}`, parsed, true);
+      }
+      const merged = normalizeStateData(parsed);
+      if (previousSchema < DATA_SCHEMA_VERSION) {
+        merged.meta.lastMigrationAt = new Date().toISOString();
+        startupDataNotice = "旧版本数据已安全升级，并自动保存了一份升级前备份。";
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+      }
+      return merged;
+    } catch (error) {
+      console.warn("读取进度失败，尝试从备份恢复", error);
+      const backup = getLatestValidBackup();
+      if (backup) {
+        const recovered = normalizeStateData(backup.state);
+        startupDataNotice = `检测到主存档异常，已从“${backup.reason}”自动恢复。`;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(recovered)); } catch {}
+        return recovered;
+      }
+      startupDataNotice = "主存档无法读取，且没有可用备份，已创建新的空白存档。";
+      const fresh = defaultState();
+      ensureDailyState(fresh);
+      return fresh;
+    }
+  }
+
+  function saveState(options = {}) {
+    try {
+      state.meta = { ...(state.meta || {}), schemaVersion: DATA_SCHEMA_VERSION, lastOpenedVersion: APP_VERSION };
+      const nextRaw = JSON.stringify(state);
+      const previousRaw = localStorage.getItem(STORAGE_KEY);
+      if (!options.skipBackup && state.settings.autoBackup && previousRaw && previousRaw !== nextRaw) {
+        try { createLocalBackup("自动备份", JSON.parse(previousRaw), false); } catch {}
+      }
+      localStorage.setItem(STORAGE_KEY, nextRaw);
+      return true;
+    } catch (error) {
+      console.warn("保存进度失败", error);
+      startupDataNotice = "本次数据保存失败，请检查浏览器存储空间，并尽快导出备份。";
+      return false;
+    }
+  }
+
+  function loadLockConfig() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCK_STORAGE_KEY) || "null");
+      if (!parsed || !parsed.enabled || !parsed.salt || !parsed.verifier) return { enabled: false, autoLockMinutes: 5 };
+      return {
+        enabled: true,
+        salt: String(parsed.salt),
+        verifier: String(parsed.verifier),
+        iterations: Math.max(50000, Number(parsed.iterations) || 120000),
+        autoLockMinutes: [0, 1, 5, 15, 30].includes(Number(parsed.autoLockMinutes)) ? Number(parsed.autoLockMinutes) : 5
+      };
+    } catch {
+      return { enabled: false, autoLockMinutes: 5 };
+    }
+  }
+
+  function saveLockConfig(config) {
+    localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(config));
+    lockConfig = { ...config };
+  }
+
+  function hasSecureLockSupport() {
+    return Boolean(globalThis.crypto?.subtle && globalThis.crypto?.getRandomValues && globalThis.TextEncoder);
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+  }
+
+  function base64ToBytes(text) {
+    const binary = atob(text);
+    return Uint8Array.from(binary, char => char.charCodeAt(0));
+  }
+
+  async function derivePasswordVerifier(password, saltBase64, iterations = 120000) {
+    if (!hasSecureLockSupport()) throw new Error("当前浏览器不支持安全密码锁。");
+    const encoder = new TextEncoder();
+    const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: base64ToBytes(saltBase64), iterations, hash: "SHA-256" }, material, 256);
+    return bytesToBase64(new Uint8Array(bits));
+  }
+
+  async function setLocalPassword(password, autoLockMinutes = 5) {
+    if (String(password).length < 6) throw new Error("密码至少需要6个字符。");
+    const salt = new Uint8Array(16);
+    crypto.getRandomValues(salt);
+    const iterations = 120000;
+    const saltBase64 = bytesToBase64(salt);
+    const verifier = await derivePasswordVerifier(password, saltBase64, iterations);
+    const normalizedAutoLock = [0, 1, 5, 15, 30].includes(Number(autoLockMinutes)) ? Number(autoLockMinutes) : 5;
+    const config = { enabled: true, salt: saltBase64, verifier, iterations, autoLockMinutes: normalizedAutoLock, updatedAt: new Date().toISOString() };
+    saveLockConfig(config);
+    appUnlocked = true;
+    return true;
+  }
+
+  async function verifyLocalPassword(password) {
+    if (!lockConfig.enabled) return true;
+    try {
+      const verifier = await derivePasswordVerifier(String(password), lockConfig.salt, lockConfig.iterations);
+      return verifier === lockConfig.verifier;
+    } catch {
+      return false;
+    }
+  }
+
+  function disableLocalPassword() {
+    localStorage.removeItem(LOCK_STORAGE_KEY);
+    lockConfig = { enabled: false, autoLockMinutes: 5 };
+    appUnlocked = true;
+  }
+
+  function getResolvedTheme(theme = state?.settings?.theme || "system") {
+    if (theme === "dark" || theme === "light") return theme;
+    try { return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light"; }
+    catch { return "light"; }
+  }
+
+  function applyAppearance() {
+    const root = document.documentElement;
+    if (!root) return;
+    const resolved = getResolvedTheme();
+    root.dataset.theme = resolved;
+    root.dataset.fontSize = state.settings.fontSize || "standard";
+    document.body?.classList?.toggle("reduce-motion", Boolean(state.settings.reduceMotion));
+    const meta = document.getElementById("themeColorMeta");
+    if (meta) meta.setAttribute?.("content", resolved === "dark" ? "#181a23" : "#7c3aed");
+  }
+
+  function normalizeSessionDraft(draft) {
+    if (!draft || typeof draft !== "object" || Number(draft.version) !== SESSION_DRAFT_VERSION) return null;
+    const savedAt = new Date(draft.savedAt || 0).getTime();
+    if (!Number.isFinite(savedAt) || Date.now() - savedAt > 1000 * 60 * 60 * 24 * 30) return null;
+    if (!draft.levelId && !draft.isFree) return null;
+    return draft;
+  }
+
+  function snapshotSession(currentSession = session) {
+    if (!currentSession || currentSession.finished) return null;
+    const inputDraft = document.getElementById("messageInput")?.value ?? currentSession.inputDraft ?? "";
+    return {
+      version: SESSION_DRAFT_VERSION,
+      appVersion: APP_VERSION,
+      savedAt: new Date().toISOString(),
+      levelId: Number(currentSession.baseLevelId || currentSession.level?.id) || null,
+      isFree: Boolean(currentSession.isFree),
+      isMistake: Boolean(currentSession.isMistake),
+      focusIssue: currentSession.focusIssue || null,
+      baseLevelId: Number(currentSession.baseLevelId) || null,
+      freeConfig: currentSession.freeConfig ? { ...currentSession.freeConfig } : null,
+      messages: Array.isArray(currentSession.messages) ? currentSession.messages.slice(-80) : [],
+      turn: Number(currentSession.turn) || 0,
+      analyses: Array.isArray(currentSession.analyses) ? currentSession.analyses.slice(-40) : [],
+      metrics: { ...(currentSession.metrics || {}) },
+      counters: { ...(currentSession.counters || {}) },
+      memory: JSON.parse(JSON.stringify(currentSession.memory || {})),
+      lastFeedback: currentSession.lastFeedback || null,
+      usedHint: Boolean(currentSession.usedHint),
+      usedReference: Boolean(currentSession.usedReference),
+      sessionXp: Number(currentSession.sessionXp) || 0,
+      newAchievements: Array.isArray(currentSession.newAchievements) ? [...currentSession.newAchievements] : [],
+      hintIndex: Number(currentSession.hintIndex) || 0,
+      inputDraft: String(inputDraft).slice(0, 220)
+    };
+  }
+
+  function persistActiveSession(currentSession = session) {
+    if (!state.settings.autoSave || !currentSession || currentSession.finished) return;
+    currentSession.inputDraft = document.getElementById("messageInput")?.value ?? currentSession.inputDraft ?? "";
+    state.game.activeSession = snapshotSession(currentSession);
+    saveState();
+  }
+
+  function clearActiveSession(shouldSave = true) {
+    state.game.activeSession = null;
+    if (shouldSave) saveState();
+  }
+
+  function buildMistakeLevel(issueKey, levelId) {
+    const base = LEVELS.find(item => item.id === levelId) || LEVELS[0];
+    return {
+      ...base,
+      no: "专项",
+      title: `${ISSUE_LABELS[issueKey] || issueKey}重练`,
+      objective: `完成至少${base.minTurns}轮，并且整局不再触发“${ISSUE_LABELS[issueKey] || issueKey}”。平均分达到65分。`
+    };
+  }
+
+  function restoreSessionDraft(draft = state.game.activeSession) {
+    const saved = normalizeSessionDraft(draft);
+    if (!saved) { clearActiveSession(); return false; }
+    let level;
+    let char;
+    if (saved.isFree) {
+      const config = normalizeFreeConfig(saved.freeConfig || {});
+      char = CHARACTERS[config.characterId];
+      level = buildFreeLevel(config, char);
+      session = createSession(level, char, true, config);
+    } else if (saved.isMistake) {
+      const levelId = saved.baseLevelId || saved.levelId || 1;
+      level = buildMistakeLevel(saved.focusIssue, levelId);
+      char = CHARACTERS[level.character];
+      session = createSession(level, char, false);
+      session.isMistake = true;
+      session.focusIssue = saved.focusIssue;
+      session.baseLevelId = levelId;
+    } else {
+      level = LEVELS.find(item => item.id === saved.levelId);
+      if (!level) { clearActiveSession(); return false; }
+      char = CHARACTERS[level.character];
+      session = createSession(level, char, false);
+    }
+    ["messages", "analyses", "newAchievements"].forEach(key => {
+      if (Array.isArray(saved[key])) session[key] = saved[key];
