@@ -1,0 +1,112 @@
+name: Diagnose archive V2.14
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/diagnose-archive-v214.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect all archive encodings
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, pathlib, traceback, zlib
+          root = pathlib.Path('.')
+          paths = sorted((root / 'bootstrap').glob('part-*.txt'))
+          report = {'part_count': len(paths), 'parts': [], 'methods': {}}
+          texts = []
+          decoded_parts = []
+          for path in paths:
+              text = ''.join(path.read_text(encoding='ascii').split())
+              texts.append(text)
+              info = {
+                  'name': path.name,
+                  'chars': len(text),
+                  'mod4': len(text) % 4,
+                  'start': text[:12],
+                  'end': text[-12:],
+                  'padding': len(text) - len(text.rstrip('='))
+              }
+              try:
+                  data = base64.b64decode(text, validate=True)
+                  decoded_parts.append(data)
+                  info.update({
+                      'decode_ok': True,
+                      'bytes': len(data),
+                      'head_hex': data[:12].hex(),
+                      'tail_hex': data[-12:].hex(),
+                      'gzip_head': data[:2] == b'\x1f\x8b'
+                  })
+                  try:
+                      out = gzip.decompress(data)
+                      info.update({'individual_gzip_ok': True, 'individual_out_bytes': len(out), 'individual_out_head': out[:40].decode('utf-8','replace')})
+                  except Exception as error:
+                      info.update({'individual_gzip_ok': False, 'individual_gzip_error': f'{type(error).__name__}: {error}'})
+              except Exception as error:
+                  decoded_parts.append(None)
+                  info.update({'decode_ok': False, 'decode_error': f'{type(error).__name__}: {error}'})
+              report['parts'].append(info)
+
+          def test_method(name, producer):
+              item = {}
+              try:
+                  data = producer()
+                  item.update({'decode_ok': True, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(), 'head_hex': data[:16].hex(), 'tail_hex': data[-16:].hex(), 'gzip_head': data[:2] == b'\x1f\x8b'})
+                  try:
+                      out = gzip.decompress(data)
+                      item.update({'gzip_ok': True, 'out_bytes': len(out), 'out_sha256': hashlib.sha256(out).hexdigest(), 'out_head': out[:100].decode('utf-8','replace')})
+                      pathlib.Path(f'{name}.bin').write_bytes(data)
+                      pathlib.Path(f'{name}.out').write_bytes(out)
+                  except Exception as error:
+                      item.update({'gzip_ok': False, 'gzip_error': f'{type(error).__name__}: {error}'})
+              except Exception as error:
+                  item.update({'decode_ok': False, 'decode_error': f'{type(error).__name__}: {error}'})
+              report['methods'][name] = item
+
+          test_method('joined_text', lambda: base64.b64decode(''.join(texts), validate=True))
+          test_method('individual_merge', lambda: b''.join(decoded_parts if all(part is not None for part in decoded_parts) else (_ for _ in ()).throw(ValueError('some parts failed decode'))))
+
+          def stripped_join():
+              text = ''.join(part.rstrip('=') for part in texts)
+              text += '=' * ((4 - len(text) % 4) % 4)
+              return base64.b64decode(text, validate=True)
+          test_method('stripped_padding_join', stripped_join)
+
+          # Also test decompressing each independently, then joining outputs.
+          try:
+              outputs = [gzip.decompress(part) for part in decoded_parts]
+              joined = b''.join(outputs)
+              report['methods']['individual_gzip_then_merge'] = {
+                  'decode_ok': True,
+                  'gzip_ok': True,
+                  'out_bytes': len(joined),
+                  'out_sha256': hashlib.sha256(joined).hexdigest(),
+                  'out_head': joined[:100].decode('utf-8','replace')
+              }
+              pathlib.Path('individual_gzip_then_merge.out').write_bytes(joined)
+          except Exception as error:
+              report['methods']['individual_gzip_then_merge'] = {'decode_ok': True, 'gzip_ok': False, 'gzip_error': f'{type(error).__name__}: {error}'}
+
+          pathlib.Path('ARCHIVE_DIAG.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(report['methods'], ensure_ascii=False, indent=2))
+          PY
+      - name: Upload archive diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-v214-diagnostic
+          path: |
+            ARCHIVE_DIAG.json
+            *.out
+            *.bin
+          if-no-files-found: ignore
