@@ -10,12 +10,17 @@ on:
       - 'sw.js'
       - '.nojekyll'
       - '.github/workflows/verify-live-v212.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/verify-live-v212.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: verify-live-v213
+  group: verify-live-v213-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,8 +38,6 @@ jobs:
         run: npm install --no-save --no-package-lock playwright-core@1.54.2
 
       - name: Wait for Pages and run real browser test
-        id: browser_test
-        continue-on-error: true
         run: |
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME"
@@ -120,21 +123,7 @@ jobs:
           });
           NODE
 
-      - name: Save verification result
-        if: always()
-        run: |
-          if [ ! -f LIVE_VERIFIED.json ]; then
-            printf '%s\n' '{"status":"failed","release":"213","error":"浏览器验收脚本未生成结果"}' > LIVE_VERIFIED.json
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add LIVE_VERIFIED.json
-          if ! git diff --cached --quiet; then
-            git commit -m '记录V2.13线上浏览器验收结果 [skip ci]'
-            git push
-          fi
-
-      - name: Upload verification screenshot
+      - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
