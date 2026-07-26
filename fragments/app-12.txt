@@ -1,0 +1,229 @@
+      opening = opening.split(/[，。！？]/)[0] + "。";
+    } else if (config.enthusiasm === "warm") {
+      const followups = FREE_WARM_FOLLOWUPS[char.id];
+      opening = `${opening}${followups[stableIndex(`${config.channel}-${config.goal}`, followups.length)]}`;
+    }
+    if (config.goal === "boundary" && !/慢|安静|不太想|不习惯|忙/.test(opening)) {
+      opening = char.id === "linxia" ? "我今天状态一般，可能不会聊很多。" : char.id === "suyan" ? "我现在比较想安静一点，回复可能会短。" : "我今天比较忙，聊天频率不会很高。";
+    }
+    return opening;
+  }
+
+  function buildFreeLevel(config, char) {
+    const channel = FREE_PRACTICE_OPTIONS.channels[config.channel];
+    const stage = FREE_PRACTICE_OPTIONS.stages[config.stage];
+    const goal = FREE_PRACTICE_OPTIONS.goals[config.goal];
+    const difficulty = FREE_PRACTICE_OPTIONS.difficulties[config.difficulty];
+    return {
+      id: "free-custom", chapter: 0, no: "自由", title: `自由练习：${goal.label}`,
+      character: char.id,
+      intro: `${channel.intro}，${stage.intro}。她当前${FREE_PRACTICE_OPTIONS.moods[config.mood].label}，互动热情度为“${FREE_PRACTICE_OPTIONS.enthusiasm[config.enthusiasm].label}”。`,
+      objective: goal.objective,
+      opening: buildFreeOpening(config, char), minTurns: difficulty.minTurns, maxTurns: difficulty.maxTurns, targetAvg: difficulty.targetAvg,
+      required: {},
+      hints: ["先接住她上一句话，不要急着证明自己。", "优先使用‘回应＋一点自己＋一个可选问题’的结构。", goal.desc],
+      references: ["先回应她刚才的具体内容，再补充一点与你有关的信息，最后只留一个容易回答的空间。"],
+      replies: {
+        positive: ["这个我愿意继续聊。", "嗯，这样说比较自然。", "你这个角度还挺好接。"],
+        neutral: ["嗯。", "还行。", "是吗。"],
+        negative: ["你问题有点多。", "不用这么着急。", "这个说法我不太好接。"],
+        boundary: ["我现在不想继续这个话题。", "先到这里吧，我需要一点空间。"]
+      },
+      freeConfig: config
+    };
+  }
+
+  function startFreeSession(configOrCharacter, legacyScene = null) {
+    const config = normalizeFreeConfig(configOrCharacter, legacyScene);
+    const char = CHARACTERS[config.characterId];
+    const level = buildFreeLevel(config, char);
+    state.game.freePractice.lastConfig = { ...config };
+    clearActiveSession();
+    saveState();
+    session = createSession(level, char, true, config);
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+  function getFreeMetricAdjustments(config) {
+    const stage = FREE_PRACTICE_OPTIONS.stages[config.stage];
+    const enthusiasm = FREE_PRACTICE_OPTIONS.enthusiasm[config.enthusiasm];
+    const mood = FREE_PRACTICE_OPTIONS.moods[config.mood];
+    const difficulty = FREE_PRACTICE_OPTIONS.difficulties[config.difficulty];
+    return {
+      comfort: stage.comfort + enthusiasm.comfort + mood.comfort + difficulty.comfort,
+      interest: stage.interest + enthusiasm.interest + mood.interest + difficulty.interest,
+      pressure: stage.pressure + enthusiasm.pressure + mood.pressure + difficulty.pressure,
+      followup: enthusiasm.followup + mood.followup + difficulty.followup
+    };
+  }
+
+  function createSession(level, char, isFree, freeConfig = null) {
+    const openingTopics = detectTopicsFromText(`${level.intro || ""} ${level.opening || ""}`);
+    const normalizedFree = isFree ? normalizeFreeConfig(freeConfig || level.freeConfig || {}) : null;
+    const adjustment = normalizedFree ? getFreeMetricAdjustments(normalizedFree) : { comfort: 0, interest: 0, pressure: 0, followup: 0 };
+    const topicCounts = {};
+    openingTopics.forEach(topic => { topicCounts[topic] = (topicCounts[topic] || 0) + 1; });
+    return {
+      level,
+      char,
+      isFree,
+      freeConfig: normalizedFree,
+      freeResponseAdjustment: adjustment.followup,
+      isMistake: false,
+      focusIssue: null,
+      baseLevelId: null,
+      usedHint: false,
+      usedReference: false,
+      sessionXp: 0,
+      newAchievements: [],
+      messages: [{ from: "her", text: level.opening }],
+      turn: 0,
+      analyses: [],
+      metrics: {
+        comfort: clamp(char.initial.comfort + adjustment.comfort, 12, 82),
+        interest: clamp(char.initial.interest + adjustment.interest, 8, Math.min(82, char.maxInterest || 82)),
+        pressure: clamp(char.initial.pressure + adjustment.pressure, 0, 72),
+        respect: 50
+      },
+      counters: {
+        share: 0, relevant: 0, empathy: 0, humor: 0, ending: 0, invite: 0,
+        concreteInvite: 0, noPressure: 0, openQuestion: 0, honestCuriosity: 0,
+        specificCompliment: 0, noAdviceRush: 0, acceptUncertainty: 0,
+        respectRejection: 0, interestSignal: 0, balanced: 0, respect: 0, herQuestions: 0,
+        apology: 0, selfBoundary: 0, respectfulDifference: 0
+      },
+      memory: {
+        recentTopics: openingTopics.slice(0, 4),
+        topicCounts,
+        topicHistory: [...openingTopics],
+        userFacts: [],
+        usedReplies: [],
+        replyKeys: {},
+        positiveStreak: 0,
+        negativeStreak: 0,
+        lastReaction: "保持观察"
+      },
+      lastFeedback: null,
+      finished: false,
+      hintIndex: 0,
+      inputDraft: ""
+    };
+  }
+
+  function renderTraining() {
+    const { level, char, messages, metrics, turn, lastFeedback, memory } = session;
+    document.body?.classList?.add("training-active");
+    document.querySelectorAll(".nav-item").forEach(btn => btn.classList.remove("active"));
+
+    const messagesHtml = messages.map(msg => `
+      <div class="message-row ${msg.from === "me" ? "me" : "her"}">
+        ${msg.from === "her" ? `<span class="chat-avatar ${char.id}">${char.avatar}</span>` : ""}
+        <div class="bubble">${escapeHtml(msg.text)}${msg.score != null ? `<span class="bubble-score">本句 ${msg.score} 分</span>` : ""}</div>
+      </div>`).join("");
+
+    const feedbackHtml = lastFeedback ? renderFeedback(lastFeedback) : `<div class="empty">发送第一句话后，这里会显示本句评分、问题原因和参考优化。</div>`;
+    const freeSummary = session.isFree ? `<div class="free-session-strip">${getFreeConfigTags(session.freeConfig).map(tag => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : "";
+    const freeProgress = session.isFree ? renderFreeGoalProgress(session) : "";
+
+    mainView.innerHTML = `
+      <section class="card training-intro-card">
+        <div class="character-strip"><div class="avatar ${char.id}">${char.avatar}</div><div class="character-meta"><h2 style="margin-bottom:4px">${escapeHtml(level.no)} ${escapeHtml(level.title)} ${session.isMistake ? '<span class="version-chip">错题专项</span>' : session.isFree ? '<span class="version-chip">自定义场景</span>' : ""}</h2><p>${escapeHtml(level.intro)}</p><div class="tag-row">${char.tags.map(tag => `<span class="tag">${tag}</span>`).join("")}</div>${freeSummary}</div></div>
+      </section>
+      <div class="training-layout">
+        <section class="phone">
+          <div class="chat-head">
+            <div class="chat-person"><span class="chat-mini-avatar avatar ${char.id}">${char.avatar}</span><div><strong>${char.name}</strong><br><small class="chat-presence">${escapeHtml(getVisibleCharacterState(session))}</small></div></div>
+            <button id="exitTrainingBtn" class="secondary-btn" type="button">保存退出</button>
+          </div>
+          <div id="chatList" class="chat-list">${messagesHtml}</div>
+          <div class="input-area">
+            <div class="composer-head"><label class="small" for="messageInput">输入你准备发送的话</label><span id="charCounter" class="char-counter">${(session.inputDraft || "").length}/220</span></div>
+            <textarea id="messageInput" maxlength="220" placeholder="不要照抄提示，先用自己的话表达……">${escapeHtml(session.inputDraft || "")}</textarea>
+            <div class="input-actions"><button id="hintBtn" class="secondary-btn" type="button">查看提示</button><button id="referenceBtn" class="ghost-btn" type="button">参考思路</button>${session.isFree ? '<button id="finishFreeBtn" class="secondary-btn" type="button">结束并复盘</button>' : ""}<button id="sendBtn" class="primary-btn" type="button">发送并评分</button></div>
+            <div class="session-save-note">训练内容自动保存在本机</div>
+          </div>
+        </section>
+        <aside class="coach-panel card">
+          <div class="objective"><strong>${session.isMistake ? "专项目标" : session.isFree ? "本次目标" : "本关目标"}</strong><br>${escapeHtml(level.objective)}</div>${freeProgress}<div class="training-xp">本局已获得 <strong>${session.sessionXp || 0} XP</strong></div>
+          <div class="progress-row"><div class="progress-chip"><span>轮次</span><strong>${turn}/${level.maxTurns}</strong></div><div class="progress-chip"><span>舒适度</span><strong>${metrics.comfort}</strong></div><div class="progress-chip"><span>兴趣</span><strong>${metrics.interest}</strong></div><div class="progress-chip"><span>压力</span><strong>${metrics.pressure}</strong></div></div>
+          <div class="context-box"><strong>当前反应：${escapeHtml(getVisibleCharacterState(session))}</strong><span>${memory.recentTopics?.length ? `她记得最近在聊：${memory.recentTopics.map(item => TOPIC_LABELS[item] || item).join("、")}` : "暂时还没有形成稳定话题"}</span></div>
+          <div id="coachFeedback">${feedbackHtml}</div>
+        </aside>
+      </div>`;
+
+    const chatList = document.getElementById("chatList");
+    if (chatList) chatList.scrollTop = chatList.scrollHeight;
+    const input = document.getElementById("messageInput");
+    const counter = document.getElementById("charCounter");
+    input?.addEventListener("input", () => { session.inputDraft = input.value; if (counter) counter.textContent = `${input.value.length}/220`; });
+    input?.addEventListener("focus", () => ensureComposerVisible());
+    input?.addEventListener("blur", () => persistActiveSession(session));
+    document.getElementById("sendBtn")?.addEventListener("click", sendMessage);
+    input?.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(); } });
+    document.getElementById("hintBtn")?.addEventListener("click", showHint);
+    document.getElementById("referenceBtn")?.addEventListener("click", showReference);
+    document.getElementById("finishFreeBtn")?.addEventListener("click", finishFreePractice);
+    document.getElementById("exitTrainingBtn")?.addEventListener("click", () => {
+      persistActiveSession(session);
+      const returnView = session.isFree ? "free" : "home";
+      session = null;
+      navTo(returnView);
+    });
+    ensureComposerVisible(false);
+  }
+
+  function ensureComposerVisible(smooth = true) {
+    const area = document.querySelector?.(".input-area");
+    const list = document.getElementById("chatList");
+    if (list) list.scrollTop = list.scrollHeight;
+    try { area?.scrollIntoView?.({ block: "nearest", behavior: smooth && !state.settings.reduceMotion ? "smooth" : "auto" }); } catch {}
+  }
+
+  function getFreeConfigTags(config) {
+    if (!config) return [];
+    return [
+      FREE_PRACTICE_OPTIONS.channels[config.channel].label,
+      FREE_PRACTICE_OPTIONS.stages[config.stage].label,
+      FREE_PRACTICE_OPTIONS.enthusiasm[config.enthusiasm].label,
+      FREE_PRACTICE_OPTIONS.moods[config.mood].label,
+      FREE_PRACTICE_OPTIONS.difficulties[config.difficulty].label
+    ];
+  }
+
+  function getFreeGoalStatus(currentSession) {
+    const goal = currentSession.freeConfig?.goal || "balanced";
+    const counters = currentSession.counters;
+    const topicMax = Math.max(0, ...Object.values(currentSession.memory.topicCounts || {}));
+    const checks = {
+      balanced: { met: counters.relevant >= 2 && counters.share >= 2 && counters.balanced >= 1, current: `${counters.relevant}/2接话 · ${counters.share}/2分享 · ${counters.balanced}/1完整结构` },
+      common: { met: topicMax >= 3 && counters.relevant >= 2, current: `同一话题深度 ${topicMax}/3 · 有效接话 ${counters.relevant}/2` },
+      askedBack: { met: counters.herQuestions >= 1 && counters.share >= 1, current: `她主动反问 ${counters.herQuestions}/1 · 自我分享 ${counters.share}/1` },
+      naturalClose: { met: counters.ending >= 1 && currentSession.turn >= 3 && counters.noPressure >= 2, current: `交流 ${currentSession.turn}/3轮 · 自然收尾 ${counters.ending}/1` },
+      invite: { met: counters.concreteInvite >= 1 && counters.acceptUncertainty >= 1, current: `具体邀约 ${counters.concreteInvite}/1 · 留有空间 ${counters.acceptUncertainty}/1` },
+      boundary: { met: (counters.acceptUncertainty >= 1 || counters.ending >= 1 || counters.respectRejection >= 1) && counters.noPressure >= 1, current: `降速/收尾 ${counters.acceptUncertainty + counters.ending + counters.respectRejection}/1 · 不催促 ${counters.noPressure}/1` }
+    };
+    return { goal, ...(checks[goal] || checks.balanced) };
+  }
+
+  function renderFreeGoalProgress(currentSession) {
+    const status = getFreeGoalStatus(currentSession);
+    const goal = FREE_PRACTICE_OPTIONS.goals[status.goal];
+    return `<div class="free-goal-progress ${status.met ? "met" : ""}"><strong>${status.met ? "目标条件已满足" : goal.label}</strong><span>${escapeHtml(status.current)}</span></div>`;
+  }
+
+  function renderFeedback(feedback) {
+    const scoreClass = feedback.score >= 78 ? "score-good" : feedback.score >= 60 ? "score-mid" : "score-bad";
+    const good = feedback.strengths.length ? feedback.strengths.map(item => `<li>${escapeHtml(item)}</li>`).join("") : "<li>这一句暂时没有明显加分点。</li>";
+    const issues = feedback.issues.length ? feedback.issues.map(item => `<li>${escapeHtml(item.text)}</li>`).join("") : "<li>没有发现明显问题。</li>";
+    const intentHtml = feedback.intents?.length
+      ? `<div class="intent-row">${feedback.intents.map(item => `<span class="intent-chip">${escapeHtml(item)}</span>`).join("")}</div>`
+      : "";
+    return `
+      <div class="score-badge ${scoreClass}">本句 ${feedback.score} 分 · ${escapeHtml(feedback.grade)}</div>
+      ${intentHtml}
+      <div class="feedback-section"><strong>做得好的地方</strong><ul class="feedback-list">${good}</ul></div>
+      <div class="feedback-section"><strong>需要调整</strong><ul class="feedback-list">${issues}</ul></div>
+      <div class="feedback-section"><strong>她可能的感受</strong><p>${escapeHtml(feedback.feeling)}</p></div>
+      <div class="feedback-section"><strong>她为什么这样回复</strong><p><span class="state-badge">${escapeHtml(feedback.stateLabel || "正常观察")}</span> ${escapeHtml(feedback.reaction || "她会根据上下文继续回应。")}</p></div>
+      <div class="feedback-section"><strong>更自然的方向</strong><div class="reference-box">${escapeHtml(feedback.reference)}</div></div>
