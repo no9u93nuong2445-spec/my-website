@@ -1,6 +1,5 @@
-const CACHE_NAME = 'heart-training-v2005';
+const CACHE_NAME = 'heart-training-v2007';
 const CORE_FILES = [
-  './',
   './index.html',
   './manifest.json',
   './icon.svg',
@@ -20,40 +19,33 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      ))
+      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
+function canonicalRequest(request) {
+  const url = new URL(request.url);
+  return new Request(url.origin + url.pathname, { method: 'GET' });
+}
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-store' })
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
+  const canonical = canonicalRequest(event.request);
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
       .then(response => {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(canonical, copy));
         }
         return response;
       })
-      .catch(() => caches.match(event.request, { ignoreSearch: true }))
+      .catch(async () => {
+        const cached = await caches.match(canonical);
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        throw new Error('offline resource unavailable');
+      })
   );
 });
