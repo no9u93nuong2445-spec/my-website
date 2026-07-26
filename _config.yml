@@ -1,8 +1,10 @@
 include:
-  - .bootstrap
+  - fragments
 exclude:
   - webdata
-  - fragments
+  - .bootstrap
+  - final-v208.html
+  - stable.html
   - app-v2-final.html
   - app-bootstrap-v206.js
   - app-data-v206-01.js
