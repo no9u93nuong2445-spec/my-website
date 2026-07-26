@@ -1,0 +1,148 @@
+        </div>
+        <div id="freePreview" class="free-preview"></div>
+        <button id="startFreeBtn" class="primary-btn full-btn" type="button">按这个设定开始训练</button>
+      </section>
+      <section class="card">
+        <div class="section-title"><div><h2>最近自由训练</h2><p class="small">自由模式不解锁正式关卡，但会进入训练历史和能力诊断。</p></div><span>${state.game.freePractice.totalSessions || 0}局</span></div>
+        <div class="free-history-list">${recentHtml}</div>
+      </section>
+      <section class="card notice">
+        完全离线运行。角色反应由本地规则、短期记忆、角色性格和你设定的关系状态共同决定；它不会假装能够百分之百读懂现实中的人。
+      </section>
+    `;
+
+    const readConfig = () => ({
+      characterId: document.getElementById("freeCharacter").value,
+      channel: document.getElementById("freeChannel").value,
+      stage: document.getElementById("freeStage").value,
+      enthusiasm: document.getElementById("freeEnthusiasm").value,
+      mood: document.getElementById("freeMood").value,
+      difficulty: document.getElementById("freeDifficulty").value,
+      goal: document.getElementById("freeGoal").value
+    });
+    const updatePreview = () => {
+      const current = normalizeFreeConfig(readConfig());
+      const summary = describeFreeConfig(current);
+      const goal = FREE_PRACTICE_OPTIONS.goals[current.goal];
+      const difficulty = FREE_PRACTICE_OPTIONS.difficulties[current.difficulty];
+      document.getElementById("freePreview").innerHTML = `<strong>${escapeHtml(goal.label)}</strong><span>${escapeHtml(summary)}</span><small>目标：${escapeHtml(goal.objective)} 建议平均分 ${difficulty.targetAvg} 分以上。</small>`;
+    };
+    ["freeCharacter","freeChannel","freeStage","freeEnthusiasm","freeMood","freeDifficulty","freeGoal"].forEach(id => document.getElementById(id).addEventListener("change", updatePreview));
+    updatePreview();
+    document.getElementById("startFreeBtn").addEventListener("click", () => startFreeSession(readConfig()));
+  }
+
+  function renderStats() {
+    const issueEntries = Object.entries(state.stats.issues || {}).sort((a, b) => b[1] - a[1]);
+    const strengthEntries = Object.entries(state.stats.strengths || {}).sort((a, b) => b[1] - a[1]);
+    const maxIssue = issueEntries[0]?.[1] || 1;
+    const diagnosis = getStageDiagnosis();
+    const profileEntries = Object.values(diagnosis.profile);
+    const plan = buildTrainingPlan(state, 5);
+    const mastery = getMasteryList();
+    const history = (state.game.trainingHistory || []).slice(-12).reverse();
+
+    const issueHtml = issueEntries.length ? issueEntries.slice(0, 8).map(([key, count]) => `
+      <div class="report-item">
+        <div class="report-item-head"><strong>${ISSUE_LABELS[key] || key}</strong><span>${count}次</span></div>
+        <div class="bar"><span style="width:${Math.round(count / maxIssue * 100)}%"></span></div>
+        ${ISSUE_LEVEL_MAP[key] ? `<button class="mini-action" data-mistake-key="${key}" type="button">专项重练</button>` : ""}
+      </div>`).join("") : `<div class="empty">还没有足够训练数据。完成几关后，这里会显示你的高频问题。</div>`;
+
+    const strengthMap = { empathy: "会回应情绪", share: "愿意分享自己", relevant: "能接住话题", humor: "幽默自然", respect: "尊重边界", openQuestion: "问题容易回答", balanced: "回应、分享和提问结构完整", ending: "懂得自然收尾", interestSignal: "能坦诚表达兴趣", specificCompliment: "会具体表达欣赏", concreteInvite: "能提出清楚邀约" };
+    const strengthHtml = strengthEntries.length ? strengthEntries.slice(0, 8).map(([key, count]) => `
+      <div class="report-item"><div class="report-item-head"><strong>${strengthMap[key] || key}</strong><span>${count}次</span></div></div>`).join("") : `<div class="empty">暂无优势记录。</div>`;
+
+    const abilityHtml = profileEntries.map(item => `
+      <div class="ability-row"><span>${escapeHtml(item.label)}</span><div class="bar"><span style="width:${item.score}%"></span></div><strong>${item.score}</strong></div>`).join("");
+
+    const planHtml = plan.map((item, index) => `
+      <button class="plan-row" type="button" ${item.type === "mistake" ? `data-plan-issue="${item.issueKey}"` : `data-plan-level="${item.levelId}"`}>
+        <span class="plan-index">${index + 1}</span><span class="plan-main"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.reason)}</small></span><em>${escapeHtml(item.status)}</em>
+      </button>`).join("");
+
+    const masteryHtml = mastery.length ? mastery.slice(0, 10).map(item => `
+      <div class="mastery-row">
+        <div><strong>${escapeHtml(ISSUE_LABELS[item.issueKey] || item.issueKey)}</strong><small>累计${item.total}次 · 专项通过${item.passes}次 · 最近干净${item.cleanRecent}/8局</small></div>
+        <div class="mastery-score"><span>${item.score}</span><em>${escapeHtml(item.status)}</em></div>
+        <div class="bar"><span style="width:${item.score}%"></span></div>
+        <button class="mini-action" data-mistake-key="${item.issueKey}" type="button">继续巩固</button>
+      </div>`).join("") : `<div class="empty">完成更多训练后，这里会显示每个问题的专项掌握度。</div>`;
+
+    const historyHtml = history.length ? history.map(item => {
+      const issue = Object.entries(item.issues || {}).sort((a, b) => b[1] - a[1])[0];
+      const typeLabel = item.type === "mistake" ? "专项" : item.type === "free" ? "自由" : "关卡";
+      return `<div class="history-row"><span class="history-type">${typeLabel}</span><div><strong>${escapeHtml(item.title || "训练")}</strong><small>${formatHistoryDate(item.date)} · ${item.messages || 0}句${issue ? ` · 主要问题：${escapeHtml(ISSUE_LABELS[issue[0]] || issue[0])}` : " · 无明显问题"}</small></div><div class="history-score ${item.passed ? "passed" : ""}">${item.avg}</div><button class="history-delete" data-delete-history="${item.id}" type="button" aria-label="删除这局记录">删除</button></div>`;
+    }).join("") : `<div class="empty">V1.5会从现在开始记录逐局历史。旧版本只有汇总数据，无法还原每一局细节。</div>`;
+
+    const achievementsHtml = Object.entries(ACHIEVEMENTS).map(([id, item]) => {
+      const unlocked = Boolean(state.game.achievements[id]);
+      return `<div class="achievement ${unlocked ? "unlocked" : "locked-achievement"}"><span class="achievement-icon">${item.icon}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.desc)}</p></div><span>${unlocked ? "已获得" : "未解锁"}</span></div>`;
+    }).join("");
+
+    const chapterHtml = CHAPTERS.map(chapter => {
+      const report = state.game.chapterAwards[chapter.id] || calculateChapterReport(chapter.id);
+      return `<div class="chapter-report ${report ? "completed-report" : ""}"><strong>${escapeHtml(chapter.title)}</strong>${report ? `<span class="grade-badge">${report.grade}</span><p>${report.avg}分 · ${report.stars}/15星</p><small>${escapeHtml(report.summary)}</small>` : `<p>尚未完成全部五关</p>`}</div>`;
+    }).join("");
+
+    const trend = diagnosis.trend;
+    const trendText = trend.direction === "样本不足" ? "完成至少4局后生成近期趋势" : `最近均分${trend.recent}，此前${trend.previous}，变化${trend.delta >= 0 ? "+" : ""}${trend.delta}`;
+    const xp = getXpProgress();
+    mainView.innerHTML = `
+      <section class="card hero">
+        <div class="player-head"><div><span class="rank-chip">Lv.${xp.level} ${escapeHtml(getRankTitle(xp.level))}</span><h2>个人训练诊断 <span class="version-chip">V2.0</span></h2></div><div class="streak-box"><strong>${diagnosis.overall}</strong><span>综合能力</span></div></div>
+        <div class="xp-line"><span style="width:${xp.percent}%"></span></div>
+        <div class="xp-caption"><span>${escapeHtml(diagnosis.stage)} · 可信度${diagnosis.confidence}</span><span>${escapeHtml(trend.direction)}：${escapeHtml(trendText)}</span></div>
+        <div class="diagnosis-line"><strong>优先补强：${escapeHtml(diagnosis.weakest.label)} ${diagnosis.weakest.score}分</strong><span>${escapeHtml(diagnosis.summary)}</span></div>
+      </section>
+      <section class="card ability-card"><div class="section-title"><div><h2>六项能力雷达</h2><p class="small">分数由句子质量、关卡成绩、高频问题和专项掌握度共同计算。</p></div></div><div class="ability-layout">${buildAbilityRadar(diagnosis.profile)}<div class="ability-list">${abilityHtml}</div></div></section>
+      <section class="card"><div class="section-title"><div><h2>自动训练计划</h2><p class="small">按高频问题和最低能力排序，先改一个问题，再练下一个。</p></div></div><div class="plan-list">${planHtml}</div></section>
+      <section class="card"><div class="section-title"><div><h2>专项掌握度</h2><p class="small">专项通过只是一次成功；最近多局不复发，才会逐步变成“已掌握”。</p></div></div><div class="mastery-list">${masteryHtml}</div></section>
+      <section class="card"><div class="section-title"><div><h2>最近训练历史</h2><p class="small">最多保留最近120局，只存在当前浏览器。</p></div></div><div class="history-list">${historyHtml}</div></section>
+      <section class="card"><div class="section-title"><div><h2>知识课程进度</h2><p class="small">课程负责理解，关卡负责把理解变成稳定表现。</p></div><span class="chapter-progress">${getCourseProgress().completed}/${getCourseProgress().total}课</span></div><button id="statsCourseBtn" class="ghost-btn full-btn" type="button">进入知识课程</button></section>
+      <section class="card"><h2>你最常出现的问题</h2><div class="report-list">${issueHtml}</div></section>
+      <section class="card"><h2>已经形成的优势</h2><div class="report-list">${strengthHtml}</div></section>
+      <section class="card"><h2>章节结业评价</h2><div class="chapter-report-grid">${chapterHtml}</div></section>
+      <section class="card"><h2>成就徽章</h2><div class="achievement-grid">${achievementsHtml}</div></section>
+    `;
+    document.getElementById("statsCourseBtn")?.addEventListener("click", () => navTo("courses"));
+    mainView.querySelectorAll("[data-delete-history]").forEach(button => button.addEventListener("click", () => {
+      if (!confirm("确定删除这局训练历史吗？\n\n这只删除报告中的单局记录，不回滚关卡成绩、经验或累计统计。删除前会自动备份。")) return;
+      if (deleteTrainingHistory(button.dataset.deleteHistory)) renderStats();
+    }));
+    mainView.querySelectorAll("[data-mistake-key]").forEach(button => button.addEventListener("click", () => startMistakeTraining(button.dataset.mistakeKey)));
+    mainView.querySelectorAll("[data-plan-issue]").forEach(button => button.addEventListener("click", () => startMistakeTraining(button.dataset.planIssue)));
+    mainView.querySelectorAll("[data-plan-level]").forEach(button => button.addEventListener("click", () => startLevel(Number(button.dataset.planLevel))));
+  }
+
+  function renderSettings() {
+    const backups = readLocalBackups().filter(isBackupValid);
+    const backupHtml = backups.length ? backups.map(backup => `
+      <div class="backup-row">
+        <div><strong>${escapeHtml(backup.reason)}</strong><span>${escapeHtml(formatHistoryDate(backup.createdAt))} · ${escapeHtml(formatBackupSummary(backup))}</span></div>
+        <div class="backup-actions"><button class="mini-action" data-restore-backup="${backup.id}" type="button">恢复</button><button class="mini-action danger-link" data-delete-backup="${backup.id}" type="button">删除</button></div>
+      </div>`).join("") : `<div class="empty compact-empty">还没有本地备份。开启自动备份后，数据变化时每6小时最多保存一次；升级、导入和清空前会强制备份。</div>`;
+    const lockSupported = hasSecureLockSupport();
+    const lockHtml = lockConfig.enabled ? `
+      <div class="lock-status"><span class="status-dot secure"></span><div><strong>密码锁已开启</strong><small>重新打开应用时需要密码。锁只限制本机访问，不等于磁盘级加密。</small></div></div>
+      <div class="form-group"><label for="autoLockSelect">切到后台后自动锁定</label><select id="autoLockSelect"><option value="0" ${lockConfig.autoLockMinutes === 0 ? "selected" : ""}>仅重新打开时</option><option value="1" ${lockConfig.autoLockMinutes === 1 ? "selected" : ""}>1分钟</option><option value="5" ${lockConfig.autoLockMinutes === 5 ? "selected" : ""}>5分钟</option><option value="15" ${lockConfig.autoLockMinutes === 15 ? "selected" : ""}>15分钟</option><option value="30" ${lockConfig.autoLockMinutes === 30 ? "selected" : ""}>30分钟</option></select></div>
+      <div class="lock-grid">
+        <div class="form-group"><label for="currentLockPassword">当前密码</label><input id="currentLockPassword" type="password" autocomplete="current-password" placeholder="修改或关闭时必填" /></div>
+        <div class="form-group"><label for="newLockPassword">新密码</label><input id="newLockPassword" type="password" autocomplete="new-password" placeholder="至少6个字符" /></div>
+        <div class="form-group"><label for="confirmLockPassword">确认新密码</label><input id="confirmLockPassword" type="password" autocomplete="new-password" placeholder="再次输入新密码" /></div>
+      </div>
+      <div class="settings-actions"><button id="lockNowBtn" class="secondary-btn" type="button">立即锁定</button><button id="changeLockBtn" class="ghost-btn" type="button">修改密码</button><button id="disableLockBtn" class="danger-btn" type="button">关闭密码锁</button></div>` : `
+      <div class="lock-status"><span class="status-dot"></span><div><strong>密码锁未开启</strong><small>${lockSupported ? "密码只保存在本机的加盐校验值，不会写入导出文件。" : "当前浏览器缺少Web Crypto能力，无法安全启用密码锁。"}</small></div></div>
+      <div class="lock-grid">
+        <div class="form-group"><label for="newLockPassword">设置密码</label><input id="newLockPassword" type="password" autocomplete="new-password" placeholder="至少6个字符" ${lockSupported ? "" : "disabled"} /></div>
+        <div class="form-group"><label for="confirmLockPassword">确认密码</label><input id="confirmLockPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" ${lockSupported ? "" : "disabled"} /></div>
+      </div>
+      <button id="enableLockBtn" class="primary-btn" type="button" ${lockSupported ? "" : "disabled"}>开启本地密码锁</button>`;
+
+    mainView.innerHTML = `
+      ${startupDataNotice ? `<section class="card data-notice"><div><strong>数据安全提示</strong><span>${escapeHtml(startupDataNotice)}</span></div><button id="dismissDataNoticeBtn" class="mini-action" type="button">知道了</button></section>` : ""}
+      <section class="card">
+        <h2>显示与手机体验</h2>
+        <div class="appearance-grid">
+          <div class="form-group"><label for="themeSelect">外观主题</label><select id="themeSelect"><option value="system" ${state.settings.theme === "system" ? "selected" : ""}>跟随系统</option><option value="light" ${state.settings.theme === "light" ? "selected" : ""}>浅色</option><option value="dark" ${state.settings.theme === "dark" ? "selected" : ""}>深色</option></select></div>
+          <div class="form-group"><label for="fontSizeSelect">文字大小</label><select id="fontSizeSelect"><option value="small" ${state.settings.fontSize === "small" ? "selected" : ""}>较小</option><option value="standard" ${state.settings.fontSize === "standard" ? "selected" : ""}>标准</option><option value="large" ${state.settings.fontSize === "large" ? "selected" : ""}>较大</option></select></div>
