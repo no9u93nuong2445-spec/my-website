@@ -1,0 +1,320 @@
+    });
+    ["metrics", "counters", "memory"].forEach(key => {
+      if (saved[key] && typeof saved[key] === "object") session[key] = saved[key];
+    });
+    session.turn = Number(saved.turn) || 0;
+    session.lastFeedback = saved.lastFeedback || null;
+    session.usedHint = Boolean(saved.usedHint);
+    session.usedReference = Boolean(saved.usedReference);
+    session.sessionXp = Number(saved.sessionXp) || 0;
+    session.hintIndex = Number(saved.hintIndex) || 0;
+    session.inputDraft = String(saved.inputDraft || "");
+    session.finished = false;
+    renderTraining();
+    return true;
+  }
+
+  function getActiveSessionSummary(draft = state.game.activeSession) {
+    const saved = normalizeSessionDraft(draft);
+    if (!saved) return null;
+    let title = "未完成训练";
+    let characterName = "角色";
+    if (saved.isFree) {
+      const config = normalizeFreeConfig(saved.freeConfig || {});
+      title = `自由练习：${FREE_PRACTICE_OPTIONS.goals[config.goal].label}`;
+      characterName = CHARACTERS[config.characterId].name;
+    } else {
+      const level = LEVELS.find(item => item.id === (saved.baseLevelId || saved.levelId));
+      title = saved.isMistake ? `${ISSUE_LABELS[saved.focusIssue] || saved.focusIssue}专项` : `${level?.no || "关卡"} ${level?.title || "训练"}`;
+      characterName = level ? CHARACTERS[level.character].name : "角色";
+    }
+    return { title, characterName, turn: Number(saved.turn) || 0, savedAt: saved.savedAt };
+  }
+
+  function discardActiveSession() {
+    clearActiveSession();
+    render();
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function navTo(view) {
+    if (session && !session.finished) persistActiveSession(session);
+    currentView = view;
+    session = null;
+    if (view !== "courses") { activeCourseId = null; activeCourseFeedback = null; }
+    document.querySelectorAll(".nav-item").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.view === view);
+    });
+    render();
+  }
+
+  function render() {
+    document.body?.classList?.toggle("training-active", Boolean(session));
+    if (session) return renderTraining();
+    if (currentView === "home") return renderHome();
+    if (currentView === "free") return renderFreePractice();
+    if (currentView === "courses") return activeCourseId ? renderCourseDetail(activeCourseId) : renderCourses();
+    if (currentView === "stats") return renderStats();
+    if (currentView === "settings") return renderSettings();
+  }
+
+  function totalStars() {
+    return Object.values(state.levels).reduce((sum, item) => sum + (item.stars || 0), 0);
+  }
+
+  function completedCount() {
+    return Object.values(state.levels).filter(item => item.completed).length;
+  }
+
+  function averageScore() {
+    if (!state.stats.totalMessages) return 0;
+    return Math.round(state.stats.scoreSum / state.stats.totalMessages);
+  }
+
+
+  function localDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function previousDateKey(dateKey) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() - 1);
+    return localDateKey(date);
+  }
+
+  function createDailyTasks(date = localDateKey()) {
+    return {
+      date,
+      tasks: {
+        messages: { label: "发送5句训练消息", target: 5, progress: 0, reward: 25, claimed: false },
+        session: { label: "完成1局训练", target: 1, progress: 0, reward: 20, claimed: false },
+        highScore: { label: "获得2句80分以上", target: 2, progress: 0, reward: 20, claimed: false },
+        cleanPass: { label: "不看提示通关1关", target: 1, progress: 0, reward: 35, claimed: false }
+      }
+    };
+  }
+
+  function ensureDailyState(targetState = state) {
+    targetState.game ||= defaultState().game;
+    const today = localDateKey();
+    if (!targetState.game.daily || targetState.game.daily.date !== today) {
+      targetState.game.daily = createDailyTasks(today);
+    } else {
+      const defaults = createDailyTasks(today).tasks;
+      targetState.game.daily.tasks ||= {};
+      Object.entries(defaults).forEach(([key, value]) => {
+        targetState.game.daily.tasks[key] = { ...value, ...(targetState.game.daily.tasks[key] || {}) };
+      });
+    }
+    return targetState.game.daily;
+  }
+
+  function xpThreshold(level) {
+    const step = Math.max(0, level - 1);
+    return Math.round(70 * step + 25 * step * Math.max(0, step - 1));
+  }
+
+  function getPlayerLevel(xp = state.game.xp) {
+    let level = 1;
+    while (level < 50 && xp >= xpThreshold(level + 1)) level += 1;
+    return level;
+  }
+
+  function getRankTitle(level = getPlayerLevel()) {
+    return [...PLAYER_RANKS].reverse().find(rank => level >= rank.min)?.title || PLAYER_RANKS[0].title;
+  }
+
+  function getXpProgress(xp = state.game.xp) {
+    const level = getPlayerLevel(xp);
+    const start = xpThreshold(level);
+    const end = xpThreshold(level + 1);
+    return { level, start, end, current: xp - start, needed: end - start, percent: Math.round((xp - start) / Math.max(1, end - start) * 100) };
+  }
+
+  function addXp(amount) {
+    const value = Math.max(0, Math.round(Number(amount) || 0));
+    state.game.xp += value;
+    return value;
+  }
+
+  function refreshStreakStatus(targetState = state) {
+    const last = targetState.game.lastActiveDate;
+    if (!last) return;
+    const today = localDateKey();
+    if (last !== today && last !== previousDateKey(today)) targetState.game.currentStreak = 0;
+  }
+
+  function trackActivityDay(targetState = state) {
+    const today = localDateKey();
+    if (targetState.game.lastActiveDate === today) return;
+    const yesterday = previousDateKey(today);
+    targetState.game.currentStreak = targetState.game.lastActiveDate === yesterday ? (targetState.game.currentStreak || 0) + 1 : 1;
+    targetState.game.bestStreak = Math.max(targetState.game.bestStreak || 0, targetState.game.currentStreak);
+    targetState.game.lastActiveDate = today;
+    targetState.game.trainingDays = [...new Set([...(targetState.game.trainingDays || []), today])].slice(-90);
+  }
+
+  function updateDailyProgress(taskId, amount = 1) {
+    const daily = ensureDailyState();
+    const task = daily.tasks[taskId];
+    if (!task) return null;
+    task.progress = clamp((task.progress || 0) + amount, 0, task.target);
+    return task;
+  }
+
+  function claimDailyReward(taskId) {
+    const task = ensureDailyState().tasks[taskId];
+    if (!task || task.claimed || task.progress < task.target) return 0;
+    task.claimed = true;
+    addXp(task.reward);
+    checkAchievements();
+    saveState();
+    return task.reward;
+  }
+
+  function unlockAchievement(id) {
+    if (!ACHIEVEMENTS[id] || state.game.achievements[id]) return false;
+    state.game.achievements[id] = new Date().toISOString();
+    return true;
+  }
+
+  function checkAchievements(context = {}) {
+    const unlocked = [];
+    const tryUnlock = (condition, id) => { if (condition && unlockAchievement(id)) unlocked.push(id); };
+    tryUnlock(state.stats.totalMessages >= 1, "firstStep");
+    tryUnlock(completedCount() >= 1, "firstPass");
+    tryUnlock(Object.values(state.levels).some(item => (item.stars || 0) >= 3), "threeStar");
+    tryUnlock(context.formalPass && !context.sessionIssues?.interrogation, "noInterrogation");
+    tryUnlock(Boolean(context.respectedRejection), "respectBoundary");
+    tryUnlock(Object.keys(state.game.chapterAwards || {}).length >= 1, "chapterGraduate");
+    tryUnlock(completedCount() >= 10, "tenLevels");
+    tryUnlock(state.stats.totalMessages >= 100, "hundredMessages");
+    tryUnlock((state.game.currentStreak || 0) >= 3, "streakThree");
+    tryUnlock(Boolean(context.mistakePassed), "mistakeBreaker");
+    tryUnlock(LEVELS.filter(level => level.id <= 30).every(level => state.levels[level.id]?.completed), "foundationGraduate");
+    tryUnlock(completedCount() >= TOTAL_LEVELS, "allLevels");
+    return unlocked;
+  }
+
+  function calculateChapterReport(chapterId, targetState = state) {
+    const levels = LEVELS.filter(level => level.chapter === chapterId);
+    const records = levels.map(level => targetState.levels[level.id]).filter(Boolean);
+    if (levels.length !== 5 || records.filter(item => item.completed).length !== levels.length) return null;
+    const avg = Math.round(records.reduce((sum, item) => sum + (item.bestScore || 0), 0) / levels.length);
+    const stars = records.reduce((sum, item) => sum + (item.stars || 0), 0);
+    const grade = avg >= 88 && stars >= 13 ? "S" : avg >= 80 ? "A" : avg >= 72 ? "B" : "C";
+    return { chapterId, avg, stars, grade, summary: CHAPTER_SUMMARIES[chapterId] || "章节训练已完成。" };
+  }
+
+  function updateChapterAwards() {
+    const updates = [];
+    CHAPTERS.forEach(chapter => {
+      const report = calculateChapterReport(chapter.id);
+      if (!report) return;
+      const old = state.game.chapterAwards[chapter.id];
+      const gradeOrder = { C: 1, B: 2, A: 3, S: 4 };
+      if (!old) {
+        state.game.chapterAwards[chapter.id] = { ...report, completedAt: new Date().toISOString() };
+        const reward = { C: 35, B: 45, A: 60, S: 80 }[report.grade];
+        addXp(reward);
+        updates.push({ ...report, reward, improved: false });
+      } else if (gradeOrder[report.grade] > gradeOrder[old.grade] || report.avg > old.avg) {
+        state.game.chapterAwards[chapter.id] = { ...report, completedAt: old.completedAt, improvedAt: new Date().toISOString() };
+        addXp(15);
+        updates.push({ ...report, reward: 15, improved: true });
+      }
+    });
+    return updates;
+  }
+
+  function getMistakeRecommendations(limit = 3, targetState = state) {
+    return Object.entries(targetState.stats.issues || {})
+      .filter(([key, count]) => count > 0 && ISSUE_LEVEL_MAP[key])
+      .sort((a, b) => {
+        const aNet = a[1] - (targetState.game.mistakeMastery[a[0]] || 0) * 2;
+        const bNet = b[1] - (targetState.game.mistakeMastery[b[0]] || 0) * 2;
+        return bNet - aNet;
+      })
+      .slice(0, limit)
+      .map(([key, count]) => {
+        const candidates = ISSUE_LEVEL_MAP[key].filter(id => id <= targetState.unlocked);
+        return { key, count, levelId: candidates[candidates.length - 1] || 1, mastery: targetState.game.mistakeMastery[key] || 0 };
+      });
+  }
+
+  function startMistakeTraining(issueKey) {
+    const recommendation = getMistakeRecommendations(20).find(item => item.key === issueKey);
+    const candidates = ISSUE_LEVEL_MAP[issueKey] || [1];
+    const levelId = recommendation?.levelId || candidates.find(id => id <= state.unlocked) || 1;
+    const base = LEVELS.find(item => item.id === levelId);
+    if (!base) return;
+    const level = buildMistakeLevel(issueKey, base.id);
+    clearActiveSession();
+    session = createSession(level, CHARACTERS[level.character], false);
+    session.isMistake = true;
+    session.focusIssue = issueKey;
+    session.baseLevelId = base.id;
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+
+  function getChapterAverage(chapterIds, targetState = state) {
+    const records = LEVELS
+      .filter(level => chapterIds.includes(level.chapter))
+      .map(level => targetState.levels[level.id])
+      .filter(record => record?.completed && Number.isFinite(Number(record.bestScore)));
+    if (!records.length) return null;
+    return records.reduce((sum, record) => sum + Number(record.bestScore || 0), 0) / records.length;
+  }
+
+  function calculateAbilityProfile(targetState = state) {
+    const total = Math.max(1, Number(targetState.stats.totalMessages) || 0);
+    const avg = targetState.stats.totalMessages ? Math.round((targetState.stats.scoreSum || 0) / total) : 0;
+    const base = targetState.stats.totalMessages ? clamp(46 + (avg - 65) * 0.45, 32, 70) : 38;
+    const profile = {};
+
+    Object.entries(ABILITY_DIMENSIONS).forEach(([key, dimension]) => {
+      const strengthCount = dimension.strengths.reduce((sum, item) => sum + Number(targetState.stats.strengths?.[item] || 0), 0);
+      const issueCount = dimension.issues.reduce((sum, item) => sum + Number(targetState.stats.issues?.[item] || 0), 0);
+      const mastery = dimension.issues.reduce((sum, item) => sum + Number(targetState.game.mistakeMastery?.[item] || 0), 0);
+      const chapterAvg = getChapterAverage(dimension.chapters, targetState);
+      const strengthBonus = Math.min(24, strengthCount / total * 24);
+      const issuePenalty = Math.min(34, issueCount / total * 42);
+      const chapterAdjustment = chapterAvg == null ? 0 : (chapterAvg - 70) * 0.28;
+      const masteryBonus = Math.min(9, mastery * 1.8);
+      const score = clamp(Math.round(base + strengthBonus - issuePenalty + chapterAdjustment + masteryBonus), 20, 96);
+      profile[key] = { ...dimension, key, score, strengthCount, issueCount, mastery };
+    });
+    return profile;
+  }
+
+  function getOverallAbility(profile = calculateAbilityProfile()) {
+    const values = Object.values(profile).map(item => item.score);
+    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+  }
+
+  function getTrainingTrend(targetState = state) {
+    const history = (targetState.game.trainingHistory || []).filter(item => Number.isFinite(Number(item.avg)));
+    if (history.length < 4) return { direction: "样本不足", delta: 0, recent: history.length ? Math.round(history.reduce((sum, item) => sum + Number(item.avg), 0) / history.length) : 0, previous: 0 };
+    const windowSize = Math.min(5, Math.floor(history.length / 2));
+    const recentItems = history.slice(-windowSize);
+    const previousItems = history.slice(-windowSize * 2, -windowSize);
+    const recent = Math.round(recentItems.reduce((sum, item) => sum + Number(item.avg), 0) / recentItems.length);
+    const previous = Math.round(previousItems.reduce((sum, item) => sum + Number(item.avg), 0) / previousItems.length);
