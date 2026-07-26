@@ -1,0 +1,300 @@
+      game: {
+        xp: 0,
+        lastActiveDate: null,
+        currentStreak: 0,
+        bestStreak: 0,
+        trainingDays: [],
+        daily: null,
+        achievements: {},
+        chapterAwards: {},
+        mistakeMastery: {},
+        trainingHistory: [],
+        freePractice: { lastConfig: null, totalSessions: 0, lastReview: null },
+        learning: { completed: {}, attempts: {}, lastCourseId: null, totalCorrect: 0 },
+        personalization: { lastDiagnosisAt: null, lastPlanSignature: null },
+        activeSession: null,
+        totalHints: 0,
+        totalReferences: 0
+      },
+      settings: {
+        coachMode: true,
+        strictMode: false,
+        autoSave: true,
+        autoBackup: true,
+        theme: "system",
+        fontSize: "standard",
+        reduceMotion: false,
+        onboardingDone: false
+      }
+    };
+  }
+
+  function normalizeStateData(parsed) {
+    const base = defaultState();
+    const source = parsed && typeof parsed === "object" ? parsed : {};
+    const merged = {
+      ...base,
+      ...source,
+      meta: { ...base.meta, ...(source.meta || {}) },
+      stats: { ...base.stats, ...(source.stats || {}) },
+      game: {
+        ...base.game,
+        ...(source.game || {}),
+        achievements: { ...base.game.achievements, ...(source.game?.achievements || {}) },
+        chapterAwards: { ...base.game.chapterAwards, ...(source.game?.chapterAwards || {}) },
+        mistakeMastery: { ...base.game.mistakeMastery, ...(source.game?.mistakeMastery || {}) },
+        trainingHistory: Array.isArray(source.game?.trainingHistory) ? source.game.trainingHistory.slice(-120) : [],
+        freePractice: { ...base.game.freePractice, ...(source.game?.freePractice || {}) },
+        learning: {
+          ...base.game.learning,
+          ...(source.game?.learning || {}),
+          completed: { ...base.game.learning.completed, ...(source.game?.learning?.completed || {}) },
+          attempts: { ...base.game.learning.attempts, ...(source.game?.learning?.attempts || {}) }
+        },
+        personalization: { ...base.game.personalization, ...(source.game?.personalization || {}) }
+      },
+      settings: { ...base.settings, ...(source.settings || {}) }
+    };
+    if (merged.levels?.[15]?.completed && merged.unlocked < 16) merged.unlocked = 16;
+    const completedIds = Object.entries(merged.levels || {}).filter(([, record]) => record?.completed).map(([id]) => Number(id)).filter(Number.isFinite);
+    const highestCompleted = completedIds.length ? Math.max(...completedIds) : 0;
+    if (highestCompleted >= Number(merged.unlocked || 1) && highestCompleted < TOTAL_LEVELS) merged.unlocked = highestCompleted + 1;
+    if (merged.game.achievements?.allLevels && highestCompleted >= 30 && highestCompleted < TOTAL_LEVELS) {
+      merged.game.achievements.foundationGraduate ||= merged.game.achievements.allLevels;
+      delete merged.game.achievements.allLevels;
+    }
+    merged.unlocked = clamp(Number(merged.unlocked) || 1, 1, TOTAL_LEVELS);
+    merged.game.xp = Math.max(0, Number(merged.game.xp) || 0);
+    merged.game.trainingDays = Array.isArray(merged.game.trainingDays) ? merged.game.trainingDays.slice(-90) : [];
+    merged.game.activeSession = normalizeSessionDraft(merged.game.activeSession);
+    merged.settings.theme = ["system", "light", "dark"].includes(merged.settings.theme) ? merged.settings.theme : "system";
+    merged.settings.fontSize = ["small", "standard", "large"].includes(merged.settings.fontSize) ? merged.settings.fontSize : "standard";
+    merged.settings.reduceMotion = Boolean(merged.settings.reduceMotion);
+    merged.settings.onboardingDone = Boolean(merged.settings.onboardingDone);
+    merged.settings.autoBackup = merged.settings.autoBackup !== false;
+    merged.meta.schemaVersion = DATA_SCHEMA_VERSION;
+    merged.meta.lastOpenedVersion = APP_VERSION;
+    ensureDailyState(merged);
+    refreshStreakStatus(merged);
+    return merged;
+  }
+
+  function checksumString(text) {
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function readLocalBackups() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(BACKUP_STORAGE_KEY) || "[]");
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(item => item && typeof item === "object" && item.id && item.state).slice(0, BACKUP_LIMIT);
+    } catch {
+      return [];
+    }
+  }
+
+  function writeLocalBackups(backups) {
+    try {
+      localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backups.slice(0, BACKUP_LIMIT)));
+      return true;
+    } catch (error) {
+      console.warn("写入本地备份失败", error);
+      return false;
+    }
+  }
+
+  function isBackupValid(backup) {
+    if (!backup || typeof backup !== "object" || !backup.state) return false;
+    try {
+      return !backup.checksum || backup.checksum === checksumString(JSON.stringify(backup.state));
+    } catch {
+      return false;
+    }
+  }
+
+  function createLocalBackup(reason = "手动备份", targetState = null, force = true) {
+    const source = targetState || (typeof state !== "undefined" ? state : null);
+    if (!source || typeof source !== "object") return null;
+    const backups = readLocalBackups().filter(isBackupValid);
+    const latest = backups[0];
+    if (!force && latest && latest.reason === "自动备份" && Date.now() - new Date(latest.createdAt).getTime() < AUTO_BACKUP_INTERVAL) return null;
+    const snapshot = cloneJson(source);
+    const backup = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      reason: String(reason || "本地备份").slice(0, 40),
+      appVersion: APP_VERSION,
+      schemaVersion: Number(source.meta?.schemaVersion) || 0,
+      checksum: checksumString(JSON.stringify(snapshot)),
+      state: snapshot
+    };
+    const next = [backup, ...backups.filter(item => item.checksum !== backup.checksum || item.reason !== backup.reason)].slice(0, BACKUP_LIMIT);
+    return writeLocalBackups(next) ? backup : null;
+  }
+
+  function deleteLocalBackup(backupId) {
+    const next = readLocalBackups().filter(item => item.id !== backupId);
+    return writeLocalBackups(next);
+  }
+
+  function getLatestValidBackup() {
+    return readLocalBackups().find(isBackupValid) || null;
+  }
+
+  function getStateSummary(targetState) {
+    const data = normalizeStateData(targetState || {});
+    const completed = Object.values(data.levels || {}).filter(item => item?.completed).length;
+    const courses = Object.keys(data.game.learning?.completed || {}).filter(key => data.game.learning.completed[key]).length;
+    return {
+      completed,
+      unlocked: data.unlocked,
+      xp: data.game.xp,
+      history: data.game.trainingHistory.length,
+      courses,
+      activeSession: Boolean(data.game.activeSession)
+    };
+  }
+
+  function buildExportEnvelope(targetState = state) {
+    const snapshot = cloneJson(targetState);
+    return {
+      format: EXPORT_FORMAT,
+      appVersion: APP_VERSION,
+      schemaVersion: DATA_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      checksum: checksumString(JSON.stringify(snapshot)),
+      state: snapshot
+    };
+  }
+
+  function parseImportedPayload(payload) {
+    if (!payload || typeof payload !== "object") throw new Error("文件内容不是有效的数据对象。");
+    let imported = payload;
+    if (payload.format === EXPORT_FORMAT) {
+      if (!payload.state || typeof payload.state !== "object") throw new Error("备份文件缺少训练数据。");
+      const actual = checksumString(JSON.stringify(payload.state));
+      if (payload.checksum && payload.checksum !== actual) throw new Error("文件校验失败，内容可能损坏或被修改。");
+      imported = payload.state;
+    }
+    if (!imported.stats && !imported.game && !imported.levels) throw new Error("这不是心动训练营的有效备份文件。");
+    return normalizeStateData(imported);
+  }
+
+  function replaceState(nextState) {
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, normalizeStateData(nextState));
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const fresh = defaultState();
+      ensureDailyState(fresh);
+      return fresh;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const previousSchema = Number(parsed?.meta?.schemaVersion) || 0;
+      if (previousSchema < DATA_SCHEMA_VERSION) {
+        createLocalBackup(`升级前备份 V${parsed?.meta?.lastOpenedVersion || "旧版"}→V${APP_VERSION}`, parsed, true);
+      }
+      const merged = normalizeStateData(parsed);
+      if (previousSchema < DATA_SCHEMA_VERSION) {
+        merged.meta.lastMigrationAt = new Date().toISOString();
+        startupDataNotice = "旧版本数据已安全升级，并自动保存了一份升级前备份。";
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch {}
+      }
+      return merged;
+    } catch (error) {
+      console.warn("读取进度失败，尝试从备份恢复", error);
+      const backup = getLatestValidBackup();
+      if (backup) {
+        const recovered = normalizeStateData(backup.state);
+        startupDataNotice = `检测到主存档异常，已从“${backup.reason}”自动恢复。`;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(recovered)); } catch {}
+        return recovered;
+      }
+      startupDataNotice = "主存档无法读取，且没有可用备份，已创建新的空白存档。";
+      const fresh = defaultState();
+      ensureDailyState(fresh);
+      return fresh;
+    }
+  }
+
+  function saveState(options = {}) {
+    try {
+      state.meta = { ...(state.meta || {}), schemaVersion: DATA_SCHEMA_VERSION, lastOpenedVersion: APP_VERSION };
+      const nextRaw = JSON.stringify(state);
+      const previousRaw = localStorage.getItem(STORAGE_KEY);
+      if (!options.skipBackup && state.settings.autoBackup && previousRaw && previousRaw !== nextRaw) {
+        try { createLocalBackup("自动备份", JSON.parse(previousRaw), false); } catch {}
+      }
+      localStorage.setItem(STORAGE_KEY, nextRaw);
+      return true;
+    } catch (error) {
+      console.warn("保存进度失败", error);
+      startupDataNotice = "本次数据保存失败，请检查浏览器存储空间，并尽快导出备份。";
+      return false;
+    }
+  }
+
+  function loadLockConfig() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCK_STORAGE_KEY) || "null");
+      if (!parsed || !parsed.enabled || !parsed.salt || !parsed.verifier) return { enabled: false, autoLockMinutes: 5 };
+      return {
+        enabled: true,
+        salt: String(parsed.salt),
+        verifier: String(parsed.verifier),
+        iterations: Math.max(50000, Number(parsed.iterations) || 120000),
+        autoLockMinutes: [0, 1, 5, 15, 30].includes(Number(parsed.autoLockMinutes)) ? Number(parsed.autoLockMinutes) : 5
+      };
+    } catch {
+      return { enabled: false, autoLockMinutes: 5 };
+    }
+  }
+
+  function saveLockConfig(config) {
+    localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(config));
+    lockConfig = { ...config };
+  }
+
+  function hasSecureLockSupport() {
+    return Boolean(globalThis.crypto?.subtle && globalThis.crypto?.getRandomValues && globalThis.TextEncoder);
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+    return btoa(binary);
+  }
+
+  function base64ToBytes(text) {
+    const binary = atob(text);
+    return Uint8Array.from(binary, char => char.charCodeAt(0));
+  }
+
+  async function derivePasswordVerifier(password, saltBase64, iterations = 120000) {
+    if (!hasSecureLockSupport()) throw new Error("当前浏览器不支持安全密码锁。");
+    const encoder = new TextEncoder();
+    const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: base64ToBytes(saltBase64), iterations, hash: "SHA-256" }, material, 256);
+    return bytesToBase64(new Uint8Array(bits));
+  }
+
+  async function setLocalPassword(password, autoLockMinutes = 5) {
+    if (String(password).length < 6) throw new Error("密码至少需要6个字符。");
+    const salt = new Uint8Array(16);
+    crypto.getRandomValues(salt);
+    const iterations = 120000;
+    const saltBase64 = bytesToBase64(salt);
+    const verifier = await derivePasswordVerifier(password, saltBase64, iterations);
