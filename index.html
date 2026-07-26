@@ -47,7 +47,7 @@ async function start(){
     for(let i=1;i<=12;i++){
       msg.textContent=`正在读取训练程序 ${i}/12……`;
       bar.style.width=`${8+Math.round(i/12*62)}%`;
-      const name=`webdata/part-${String(i).padStart(2,'0')}.txt?v=2004`;
+      const name=`webdata/part-${String(i).padStart(2,'0')}.txt?v=2005`;
       const response=await fetch(name,{cache:'no-store'});
       if(!response.ok) fail(`程序分块 ${i} 读取失败（HTTP ${response.status}）`);
       const part=(await response.text()).replace(/\s/g,'');
@@ -72,8 +72,9 @@ async function start(){
     bar.style.width='84%';
     const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
     const html=await new Response(stream).text();
-    if(html.length<300000 || !html.includes('<html') || !html.includes('心动训练营') || !html.includes('自由练习')){
-      fail(`训练页面校验失败（${html.length}字符）`);
+    const htmlBytes=new TextEncoder().encode(html).length;
+    if(htmlBytes<300000 || !html.includes('<html') || !html.includes('心动训练营') || !html.includes('自由练习')){
+      fail(`训练页面校验失败（${htmlBytes}字节）`);
     }
 
     msg.textContent='载入完成';
