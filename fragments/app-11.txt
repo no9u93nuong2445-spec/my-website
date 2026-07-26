@@ -1,0 +1,247 @@
+        </div>
+        <label class="check-row form-group"><input id="reduceMotion" type="checkbox" ${state.settings.reduceMotion ? "checked" : ""} /><span><strong>减少动画</strong><br><span class="small">关闭平滑滚动和过渡效果，适合容易晕动或性能较弱的手机。</span></span></label>
+        <div class="setting-preview"><span class="avatar linxia" style="width:36px;height:36px;flex-basis:36px;font-size:14px">林</span><div class="setting-preview-bubble">这个大小看起来舒服吗？</div></div>
+      </section>
+      <section class="card">
+        <h2>训练设置</h2>
+        <label class="check-row form-group"><input id="coachMode" type="checkbox" ${state.settings.coachMode ? "checked" : ""} /><span><strong>即时教练模式</strong><br><span class="small">每句话发送后立即显示评分和修改建议。</span></span></label>
+        <label class="check-row form-group"><input id="strictMode" type="checkbox" ${state.settings.strictMode ? "checked" : ""} /><span><strong>严格评分</strong><br><span class="small">提高通关分数要求，更适合重复挑战。</span></span></label>
+        <label class="check-row form-group"><input id="autoSave" type="checkbox" ${state.settings.autoSave ? "checked" : ""} /><span><strong>自动保存训练</strong><br><span class="small">离开关卡、切到后台或关闭页面时，保存当前轮次和未发送文字。</span></span></label>
+        <button id="showOnboardingBtn" class="ghost-btn" type="button">重新查看新手引导</button>
+      </section>
+      <section class="card security-card">
+        <div class="section-title"><div><h2>本地密码锁</h2><p class="small">使用PBKDF2加盐校验，不保存明文密码。它用于防止别人随手打开，不是对浏览器存储进行加密。</p></div><span class="version-chip">仅本设备</span></div>
+        ${lockHtml}
+      </section>
+      <section class="card">
+        <div class="section-title"><div><h2>备份与恢复</h2><p class="small">导出文件包含完整训练数据和校验码；密码锁配置不会被导出。</p></div><span class="chapter-progress">最多${BACKUP_LIMIT}份本地备份</span></div>
+        <label class="check-row form-group"><input id="autoBackup" type="checkbox" ${state.settings.autoBackup ? "checked" : ""} /><span><strong>自动备份</strong><br><span class="small">数据变化时每6小时最多保存一次，升级、导入、删除记录和清空前会额外备份。</span></span></label>
+        <div class="settings-actions"><button id="exportBtn" class="secondary-btn" type="button">导出完整备份</button><button id="importBtn" class="secondary-btn" type="button">从JSON恢复</button><button id="manualBackupBtn" class="ghost-btn" type="button">立即本地备份</button><input id="importFile" class="hidden" type="file" accept="application/json,.json" /></div>
+        <div class="backup-list">${backupHtml}</div>
+      </section>
+      <section class="card">
+        <h2>清理数据</h2>
+        <div class="settings-actions"><button id="resetBtn" class="danger-btn" type="button">清空训练数据</button></div>
+        <p class="small" style="margin-top:12px">清空前会自动保存一份本地备份；本地密码锁和备份列表不会被删除。训练历史中的单局记录可在“报告”页单独删除。</p>
+      </section>
+      <section class="card notice">本工具只用于练习真实、尊重、平等的沟通。对方明确拒绝时，正确答案是尊重和停止推进，而不是寻找“破解拒绝”的话术。</section>`;
+
+    ["coachMode", "strictMode", "autoSave", "autoBackup", "reduceMotion"].forEach(id => {
+      document.getElementById(id)?.addEventListener("change", event => {
+        state.settings[id] = event.target.checked;
+        if (id === "autoSave" && !state.settings.autoSave) clearActiveSession(false);
+        applyAppearance();
+        saveState();
+      });
+    });
+    document.getElementById("themeSelect")?.addEventListener("change", event => { state.settings.theme = event.target.value; applyAppearance(); saveState(); });
+    document.getElementById("fontSizeSelect")?.addEventListener("change", event => { state.settings.fontSize = event.target.value; applyAppearance(); saveState(); renderSettings(); });
+    document.getElementById("showOnboardingBtn")?.addEventListener("click", () => openOnboarding(true));
+    document.getElementById("dismissDataNoticeBtn")?.addEventListener("click", () => { startupDataNotice = ""; renderSettings(); });
+    document.getElementById("exportBtn")?.addEventListener("click", exportData);
+    document.getElementById("importBtn")?.addEventListener("click", () => document.getElementById("importFile")?.click?.());
+    document.getElementById("importFile")?.addEventListener("change", async event => {
+      try { await importDataFile(event.target.files?.[0]); }
+      catch (error) { alert(`导入失败：${error.message || "文件无法读取"}`); }
+      event.target.value = "";
+    });
+    document.getElementById("manualBackupBtn")?.addEventListener("click", () => {
+      const backup = createLocalBackup("手动备份", state, true);
+      alert(backup ? "本地备份已创建。" : "备份失败，请检查浏览器存储空间。");
+      renderSettings();
+    });
+    mainView.querySelectorAll("[data-restore-backup]").forEach(button => button.addEventListener("click", () => restoreLocalBackup(button.dataset.restoreBackup)));
+    mainView.querySelectorAll("[data-delete-backup]").forEach(button => button.addEventListener("click", () => {
+      if (!confirm("确定删除这份本地备份吗？删除后无法恢复。")) return;
+      deleteLocalBackup(button.dataset.deleteBackup);
+      renderSettings();
+    }));
+    document.getElementById("autoLockSelect")?.addEventListener("change", event => {
+      lockConfig.autoLockMinutes = Number(event.target.value);
+      saveLockConfig(lockConfig);
+    });
+    document.getElementById("enableLockBtn")?.addEventListener("click", async () => {
+      const password = document.getElementById("newLockPassword")?.value || "";
+      const confirmPassword = document.getElementById("confirmLockPassword")?.value || "";
+      if (password !== confirmPassword) { alert("两次输入的密码不一致。"); return; }
+      try { await setLocalPassword(password, 5); alert("本地密码锁已开启。下次重新打开应用时需要输入密码。"); renderSettings(); }
+      catch (error) { alert(error.message || "密码锁开启失败。"); }
+    });
+    document.getElementById("changeLockBtn")?.addEventListener("click", async () => {
+      const current = document.getElementById("currentLockPassword")?.value || "";
+      const next = document.getElementById("newLockPassword")?.value || "";
+      const confirmation = document.getElementById("confirmLockPassword")?.value || "";
+      if (!(await verifyLocalPassword(current))) { alert("当前密码不正确。"); return; }
+      if (next !== confirmation) { alert("两次输入的新密码不一致。"); return; }
+      try { await setLocalPassword(next, lockConfig.autoLockMinutes); alert("密码已修改。"); renderSettings(); }
+      catch (error) { alert(error.message || "密码修改失败。"); }
+    });
+    document.getElementById("disableLockBtn")?.addEventListener("click", async () => {
+      const current = document.getElementById("currentLockPassword")?.value || "";
+      if (!(await verifyLocalPassword(current))) { alert("当前密码不正确。"); return; }
+      if (!confirm("确定关闭本地密码锁吗？")) return;
+      disableLocalPassword();
+      renderSettings();
+    });
+    document.getElementById("lockNowBtn")?.addEventListener("click", () => showLockScreen("已手动锁定。"));
+    document.getElementById("resetBtn")?.addEventListener("click", () => {
+      if (!confirm("确定清空所有关卡进度和训练统计吗？\n\n系统会先保存一份‘清空前备份’，本地密码锁与备份列表不会删除。")) return;
+      createLocalBackup("清空前备份", state, true);
+      replaceState(defaultState());
+      saveState({ skipBackup: true });
+      applyAppearance();
+      startupDataNotice = "训练数据已清空；需要撤销时，可从本页的本地备份恢复。";
+      renderSettings();
+    });
+  }
+
+  function exportData() {
+    const envelope = buildExportEnvelope(state);
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `心动训练营_完整备份_V${APP_VERSION}_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importDataFile(file) {
+    if (!file) return false;
+    if (Number(file.size) > MAX_IMPORT_BYTES) throw new Error("导入文件超过5MB，已停止处理。");
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const imported = parseImportedPayload(parsed);
+    const summary = getStateSummary(imported);
+    const confirmed = confirm(`准备恢复这份数据：\n已通关 ${summary.completed}/${TOTAL_LEVELS} 关\n经验 ${summary.xp} XP\n历史记录 ${summary.history} 局\n课程 ${summary.courses}/12\n\n当前数据会先自动备份。确认继续吗？`);
+    if (!confirmed) return false;
+    createLocalBackup("导入前备份", state, true);
+    replaceState(imported);
+    saveState({ skipBackup: true });
+    applyAppearance();
+    startupDataNotice = "数据导入成功；导入前的存档已保存在本地备份中。";
+    currentView = "settings";
+    renderSettings();
+    alert("数据恢复完成。");
+    return true;
+  }
+
+  function restoreLocalBackup(backupId) {
+    const backup = readLocalBackups().find(item => item.id === backupId && isBackupValid(item));
+    if (!backup) { alert("这份备份不存在或校验失败。"); return false; }
+    const summary = getStateSummary(backup.state);
+    if (!confirm(`恢复“${backup.reason}”？\n${formatHistoryDate(backup.createdAt)}\n已通关 ${summary.completed}/${TOTAL_LEVELS} 关，${summary.xp} XP。\n\n当前数据会先保存为一份“恢复前备份”。`)) return false;
+    createLocalBackup("恢复前备份", state, true);
+    replaceState(backup.state);
+    saveState({ skipBackup: true });
+    applyAppearance();
+    startupDataNotice = `已恢复备份：${backup.reason}`;
+    renderSettings();
+    return true;
+  }
+
+  function deleteTrainingHistory(historyId) {
+    const before = state.game.trainingHistory.length;
+    if (!historyId || !state.game.trainingHistory.some(item => item.id === historyId)) return false;
+    createLocalBackup("删除训练记录前", state, true);
+    state.game.trainingHistory = state.game.trainingHistory.filter(item => item.id !== historyId);
+    saveState({ skipBackup: true });
+    return state.game.trainingHistory.length === before - 1;
+  }
+
+  function formatBackupSummary(backup) {
+    try {
+      const summary = getStateSummary(backup.state);
+      return `${summary.completed}/${TOTAL_LEVELS}关 · ${summary.xp} XP · ${summary.history}局历史`;
+    } catch {
+      return "备份摘要不可读取";
+    }
+  }
+
+  function showLockScreen(message = "") {
+    if (!lockConfig.enabled) return;
+    appUnlocked = false;
+    document.body?.classList?.add("app-locked");
+    if (unlockError) unlockError.textContent = message;
+    if (unlockPassword) unlockPassword.value = "";
+    try { if (!lockDialog?.open) lockDialog?.showModal?.(); } catch {}
+    setTimeout(() => unlockPassword?.focus?.(), 30);
+  }
+
+  function hideLockScreen() {
+    appUnlocked = true;
+    failedUnlockAttempts = 0;
+    document.body?.classList?.remove("app-locked");
+    try { lockDialog?.close?.(); } catch {}
+    if (!state.settings.onboardingDone) openOnboarding(false);
+  }
+
+  async function handleUnlock() {
+    const password = unlockPassword?.value || "";
+    if (!password) { if (unlockError) unlockError.textContent = "请输入本地密码。"; return; }
+    const ok = await verifyLocalPassword(password);
+    if (ok) { hideLockScreen(); return; }
+    failedUnlockAttempts += 1;
+    if (unlockError) unlockError.textContent = failedUnlockAttempts >= 3 ? "密码不正确。忘记密码只能清除本浏览器的站点数据，训练数据也会被删除。" : "密码不正确，请重试。";
+    if (unlockPassword) { unlockPassword.value = ""; unlockPassword.focus?.(); }
+  }
+
+  function startLevel(levelId) {
+    const level = LEVELS.find(item => item.id === levelId);
+    if (!level || level.id > state.unlocked) return;
+    const char = CHARACTERS[level.character];
+    clearActiveSession();
+    session = createSession(level, char, false);
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+  function getDefaultFreeConfig(targetState = state) {
+    return normalizeFreeConfig(targetState.game?.freePractice?.lastConfig || {
+      characterId: "linxia", channel: "social", stage: "new", enthusiasm: "normal",
+      mood: "relaxed", difficulty: "beginner", goal: "balanced"
+    });
+  }
+
+  function normalizeFreeConfig(input, legacyScene = null) {
+    let config;
+    if (typeof input === "string") {
+      const legacy = {
+        opening: { characterId: input, channel: "social", stage: "new", enthusiasm: "normal", mood: "relaxed", difficulty: "beginner", goal: "balanced" },
+        daily: { characterId: input, channel: "wechat", stage: "few", enthusiasm: "normal", mood: "busy", difficulty: "standard", goal: "balanced" },
+        cold: { characterId: input, channel: "social", stage: "few", enthusiasm: "cold", mood: "cautious", difficulty: "standard", goal: "boundary" },
+        invite: { characterId: input, channel: "wechat", stage: "familiar", enthusiasm: "warm", mood: "relaxed", difficulty: "standard", goal: "invite" }
+      };
+      config = legacy[legacyScene] || legacy.opening;
+    } else {
+      config = { ...(input || {}) };
+    }
+    const valid = (group, value, fallback) => Object.prototype.hasOwnProperty.call(group, value) ? value : fallback;
+    return {
+      characterId: Object.prototype.hasOwnProperty.call(CHARACTERS, config.characterId) ? config.characterId : "linxia",
+      channel: valid(FREE_PRACTICE_OPTIONS.channels, config.channel, "social"),
+      stage: valid(FREE_PRACTICE_OPTIONS.stages, config.stage, "new"),
+      enthusiasm: valid(FREE_PRACTICE_OPTIONS.enthusiasm, config.enthusiasm, "normal"),
+      mood: valid(FREE_PRACTICE_OPTIONS.moods, config.mood, "relaxed"),
+      difficulty: valid(FREE_PRACTICE_OPTIONS.difficulties, config.difficulty, "beginner"),
+      goal: valid(FREE_PRACTICE_OPTIONS.goals, config.goal, "balanced")
+    };
+  }
+
+  function describeFreeConfig(config) {
+    const c = normalizeFreeConfig(config);
+    return `${FREE_PRACTICE_OPTIONS.channels[c.channel].label} · ${FREE_PRACTICE_OPTIONS.stages[c.stage].label} · ${FREE_PRACTICE_OPTIONS.enthusiasm[c.enthusiasm].label} · ${FREE_PRACTICE_OPTIONS.moods[c.mood].label} · ${FREE_PRACTICE_OPTIONS.difficulties[c.difficulty].label}`;
+  }
+
+  function stableIndex(text, length) {
+    let hash = 0;
+    for (const char of String(text)) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+    return length ? Math.abs(hash) % length : 0;
+  }
+
+  function buildFreeOpening(config, char) {
+    const moodPool = FREE_OPENING_POOLS[config.mood]?.[char.id] || FREE_OPENING_POOLS.relaxed[char.id];
+    let opening = moodPool[stableIndex(`${char.id}-${config.channel}-${config.stage}-${config.enthusiasm}`, moodPool.length)];
+    if (config.enthusiasm === "cold") {
