@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heart-training-v2004';
+const CACHE_NAME = 'heart-training-v2005';
 const CORE_FILES = [
   './',
   './index.html',
