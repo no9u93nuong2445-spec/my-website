@@ -21,7 +21,7 @@
 <script>
 (() => {
   'use strict';
-  const RELEASE = '212';
+  const RELEASE = '213';
   const PART_COUNT = 24;
   const statusEl = document.getElementById('status');
   const detailEl = document.getElementById('detail');
@@ -70,7 +70,6 @@
   function extractHtml(payload) {
     const initial = new TextDecoder('utf-8').decode(payload.subarray(0, Math.min(payload.length, 4096))).trimStart().toLowerCase();
     if (initial.startsWith('<!doctype html') || initial.startsWith('<html')) return new TextDecoder('utf-8').decode(payload);
-
     const candidates = [];
     let offset = 0;
     while (offset + 512 <= payload.length) {
@@ -84,9 +83,7 @@
       const dataStart = offset + 512;
       const dataEnd = dataStart + size;
       if (dataEnd > payload.length) throw new Error(`TAR文件不完整：${path}`);
-      if ((type === '0' || type === '\0') && /\.html?$/i.test(path) && size > 200000) {
-        candidates.push({ path, size, bytes: payload.slice(dataStart, dataEnd) });
-      }
+      if ((type === '0' || type === '\0') && /\.html?$/i.test(path) && size > 200000) candidates.push({ path, size, bytes: payload.slice(dataStart, dataEnd) });
       offset = dataStart + Math.ceil(size / 512) * 512;
     }
     if (!candidates.length) throw new Error('完整HTML程序未在离线包中找到');
@@ -114,7 +111,7 @@
     const parts = [];
     for (let index = 0; index < PART_COUNT; index += 1) {
       const file = String(index).padStart(3, '0');
-      const url = `./.bootstrap/part-${file}.txt?v=${RELEASE}-${Date.now()}`;
+      const url = `./bootstrap/part-${file}.txt?v=${RELEASE}-${Date.now()}`;
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`程序数据片段 ${file} 读取失败（HTTP ${response.status}）`);
       const text = (await response.text()).replace(/\s+/g, '');
