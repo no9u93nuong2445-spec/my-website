@@ -1,6 +1,6 @@
-const CACHE_NAME = 'heart-training-direct-v211';
+const CACHE_NAME = 'heart-training-loader-v212';
 const FALLBACK_PAGE = './index.html';
-const CORE_FILES = ['./', './index.html', './app.js', './style.css', './manifest.json', './icon.svg'];
+const CORE_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -30,8 +30,7 @@ self.addEventListener('fetch', event => {
     fetch(event.request, { cache: 'no-store' })
       .then(response => {
         if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(canonical, copy));
+          caches.open(CACHE_NAME).then(cache => cache.put(canonical, response.clone()));
         }
         return response;
       })
