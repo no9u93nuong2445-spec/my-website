@@ -3,7 +3,7 @@
   "short_name": "心动训练营",
   "description": "完全离线的恋爱沟通与聊天闯关训练工具",
   "lang": "zh-CN",
-  "start_url": "./final-v208.html?source=pwa&v=208",
+  "start_url": "./?source=pwa&v=211",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f6f3ff",
@@ -11,7 +11,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "./icon.svg?v=208",
+      "src": "./icon.svg?v=211",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
