@@ -21,7 +21,7 @@
 <script>
 (() => {
   'use strict';
-  const RELEASE = '213';
+  const RELEASE = '214';
   const PART_COUNT = 24;
   const statusEl = document.getElementById('status');
   const detailEl = document.getElementById('detail');
@@ -53,6 +53,24 @@
       for (let i = offset; i < end; i += 1) bytes[i] = binary.charCodeAt(i);
     }
     return bytes;
+  }
+
+  function decodeParts(parts) {
+    const chunks = parts.map((part, index) => {
+      try {
+        return decodeBase64(part);
+      } catch (error) {
+        throw new Error(`程序数据片段 ${String(index).padStart(3, '0')} Base64解码失败：${error.message}`);
+      }
+    });
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return merged;
   }
 
   function readTarText(bytes, offset, length) {
@@ -109,6 +127,7 @@
     await clearOldCaches();
     update(8, '正在读取程序数据…', '准备读取24个完整数据片段');
     const parts = [];
+    let encodedLength = 0;
     for (let index = 0; index < PART_COUNT; index += 1) {
       const file = String(index).padStart(3, '0');
       const url = `./bootstrap/part-${file}.txt?v=${RELEASE}-${Date.now()}`;
@@ -117,13 +136,13 @@
       const text = (await response.text()).replace(/\s+/g, '');
       if (!text || !/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error(`程序数据片段 ${file} 内容无效`);
       parts.push(text);
+      encodedLength += text.length;
       update(8 + Math.round((index + 1) / PART_COUNT * 54), '正在读取程序数据…', `已读取 ${index + 1}/${PART_COUNT}`);
     }
-    const encoded = parts.join('');
-    update(66, '正在校验压缩包…', `已读取 ${(encoded.length / 1024).toFixed(0)} KB 编码数据`);
-    const compressed = decodeBase64(encoded);
+    update(66, '正在逐段解码…', `已读取 ${(encodedLength / 1024).toFixed(0)} KB 编码数据`);
+    const compressed = decodeParts(parts);
     if (compressed[0] !== 0x1f || compressed[1] !== 0x8b) throw new Error('程序压缩包头校验失败');
-    update(74, '正在解压完整程序…', '本步骤全部在浏览器本地完成');
+    update(74, '正在解压完整程序…', `压缩数据 ${(compressed.length / 1024).toFixed(0)} KB，本步骤全部在浏览器本地完成`);
     const payload = await decompressGzip(compressed);
     update(86, '正在提取应用…', `解压后 ${(payload.length / 1024).toFixed(0)} KB`);
     const html = extractHtml(payload);
