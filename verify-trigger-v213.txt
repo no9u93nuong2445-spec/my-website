@@ -1,1 +1,1 @@
-V2.13 live verification trigger
+V2.13 live diagnostic trigger 2
