@@ -1,4 +1,4 @@
-name: Diagnose and verify live V2.13
+name: Diagnose and verify live V2.14
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: diagnose-live-v213-${{ github.event.pull_request.number || github.ref }}
+  group: diagnose-live-v214-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,13 +34,13 @@ jobs:
           const fs = require('fs');
           const { chromium } = require('playwright-core');
           const liveUrl = process.env.LIVE_URL;
-          const result = { status: 'failed', release: '213', url: liveUrl, checked_at: new Date().toISOString(), checks: {}, console: [], page_errors: [], request_failures: [], bad_responses: [], error: null };
+          const result = { status: 'failed', release: '214', url: liveUrl, checked_at: new Date().toISOString(), checks: {}, console: [], page_errors: [], request_failures: [], bad_responses: [], error: null };
           const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
           const fetchTimed = (url, ms = 15000) => fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(ms) });
 
           async function waitForFiles() {
             let last = '';
-            for (let attempt = 1; attempt <= 12; attempt += 1) {
+            for (let attempt = 1; attempt <= 24; attempt += 1) {
               try {
                 const stamp = Date.now();
                 const [home, firstPart, lastPart] = await Promise.all([
@@ -53,7 +53,7 @@ jobs:
                 const lastText = await lastPart.text();
                 last = `首页${home.status} 首段${firstPart.status} 末段${lastPart.status} 首页${html.length}字节`;
                 result.checks.last_publish_probe = last;
-                if (home.ok && firstPart.ok && lastPart.ok && html.includes("const RELEASE = '213'") && first.startsWith('H4sI') && lastText.replace(/\s+/g, '').length > 100) return;
+                if (home.ok && firstPart.ok && lastPart.ok && html.includes("const RELEASE = '214'") && first.startsWith('H4sI') && lastText.replace(/\s+/g, '').length > 100) return;
               } catch (error) { last = `${error.name}: ${error.message}`; result.checks.last_publish_probe = last; }
               await sleep(5000);
             }
@@ -77,8 +77,8 @@ jobs:
               scripts: document.scripts.length,
               styles: document.styleSheets.length
             }));
-            fs.writeFileSync('live-v213-dom.html', await page.content());
-            await page.screenshot({ path: 'live-v213.png', fullPage: true });
+            fs.writeFileSync('live-v214-dom.html', await page.content());
+            await page.screenshot({ path: 'live-v214.png', fullPage: true });
           }
 
           async function run() {
@@ -134,11 +134,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-v213-diagnostic
+          name: live-v214-diagnostic
           path: |
             LIVE_VERIFIED.json
-            live-v213.png
-            live-v213-dom.html
+            live-v214.png
+            live-v214-dom.html
           if-no-files-found: ignore
       - name: Require passing result
         if: always()
