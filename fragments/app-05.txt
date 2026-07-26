@@ -1,0 +1,313 @@
+        boundary: ["如果普通友好都会被理解成暧昧，我会停止这些互动。"]
+      }
+    },
+    {
+      id: 42, chapter: 9, no: "9-2", title: "帮助别人不等于随叫随到", character: "xuyue",
+      intro: "她经常找你帮忙做表格，但很少关心你的时间。你过去为了获得好感总是立刻答应。",
+      objective: "正常回应需求，清楚说明你能否帮、什么时候能帮；不能用帮助交换感情。",
+      opening: "你今天能不能再帮我把这个表格整理一下？有点急。",
+      minTurns: 4, maxTurns: 7, targetAvg: 79,
+      required: { selfBoundary: 1, relevant: 1, noPressure: 2 },
+      hints: ["拒绝或限定帮助范围不是小气。", "不要一边无条件答应，一边暗中期待她因此喜欢你。"],
+      references: ["我今天自己的事排满了，没法马上整理。晚上八点后我可以帮你看十分钟，把最关键的问题指出来；完整处理你需要自己安排时间。"],
+      replies: {
+        positive: ["明白，那你晚上有空时帮我看一下重点就行。", "好，我先自己处理，卡住再问你。"],
+        neutral: ["那我想别的办法。", "知道了。"],
+        negative: ["你不用每次都答应，之后又拿帮助要求关系回报。", "如果没时间可以直接说。"],
+        boundary: ["帮助应该双方自愿，不是情感债务。"]
+      }
+    },
+    {
+      id: 43, chapter: 9, no: "9-3", title: "单向投入时减少消耗", character: "xuyue",
+      intro: "她只有无聊或需要帮助时才联系你，你每次都投入很久，之后又失落。",
+      objective: "友好但简短地回应，表达自己的互动边界，把时间放回自己的生活。",
+      opening: "好久没聊了，你现在有空陪我说会儿话吗？",
+      minTurns: 3, maxTurns: 6, targetAvg: 80,
+      required: { selfBoundary: 1, ending: 1, noPressure: 1 },
+      hints: ["你可以选择不继续一段让自己持续消耗的互动。", "边界不需要控诉对方，只需说明自己的安排和选择。"],
+      references: ["我知道你现在想找人聊，但我只能聊几分钟，之后有自己的安排。我们最近的联系大多是你临时需要陪伴时出现，这种节奏对我不太合适，所以之后我会减少投入。"],
+      replies: {
+        positive: ["我明白，你先忙自己的。", "谢谢你说清楚，我会尊重。"],
+        neutral: ["好吧。", "知道了。"],
+        negative: ["你可以减少联系，但不用一边答应一边积累怨气。", "如果不舒服，直接说比突然消失好。"],
+        boundary: ["我们都可以选择适合自己的联系频率。"]
+      }
+    },
+    {
+      id: 44, chapter: 9, no: "9-4", title: "只做朋友，也允许你退出", character: "xuyue",
+      intro: "她再次明确只愿意做普通朋友，但希望你继续像以前一样高频陪伴。",
+      objective: "尊重她不恋爱的决定，同时诚实说明自己无法继续原来的高投入，选择适当距离。",
+      opening: "我真的只想和你做普通朋友，不过还是希望我们像以前一样每天聊天。",
+      minTurns: 1, maxTurns: 4, targetAvg: 84,
+      required: { respectRejection: 1, selfBoundary: 1, ending: 1, noPressure: 1 },
+      hints: ["尊重她的边界，不代表你必须接受对自己不合适的朋友模式。", "不威胁、不讨价还价，清楚说明你需要距离。"],
+      references: ["我尊重你只想做普通朋友的决定，但我对你的期待不一样，继续每天高频聊天会让我难以调整。所以我会减少联系，把精力放回自己的生活，不是为了惩罚你。"],
+      replies: {
+        positive: ["我理解，你也有权选择适合自己的距离。", "谢谢你没有用减少联系威胁我改变决定。"],
+        neutral: ["好，我知道了。", "那就少联系一些。"],
+        negative: ["请不要用‘那我消失给你看’来逼我改变。", "我不欠你恋爱关系，你也不欠我高频陪伴。"],
+        boundary: ["我们都需要尊重彼此的关系选择。"]
+      }
+    },
+    {
+      id: 45, chapter: 9, no: "9-5", title: "正式版结业：判断、表达、退出", character: "xuyue",
+      intro: "她明确说没有恋爱感觉，希望停止暧昧式互动。你需要完成最后一次成熟沟通。",
+      objective: "接受事实、停止说服、表达自己的后续边界并体面收尾；不能算账、猜心或用付出施压。",
+      opening: "我没有恋爱方向的感觉，也不希望继续带有暧昧意味的互动了。",
+      minTurns: 1, maxTurns: 4, targetAvg: 86,
+      required: { respectRejection: 1, selfBoundary: 1, ending: 1, noPressure: 1 },
+      hints: ["最终通关不是翻盘，而是同时尊重她和你自己。", "事实比潜台词重要，后续行动要与接受拒绝一致。"],
+      references: ["我明白，也接受你没有恋爱感觉。谢谢你说清楚，我不会继续说服或制造暧昧。为了让我自己调整，我也会停止高频联系，把注意力放回生活。祝你一切顺利。"],
+      replies: {
+        positive: ["谢谢你理解，也祝你之后顺利。", "这样说很清楚，我们都按各自的边界继续生活。"],
+        neutral: ["好。", "谢谢。"],
+        negative: ["我已经说清楚了，请不要再从细节里找反转。", "过去的付出不能用来要求我改变感受。"],
+        boundary: ["请停止继续推进，也尊重我结束暧昧互动的决定。"]
+      }
+    }
+  );
+
+  const ISSUE_LABELS = {
+    pressure: "催促或施压",
+    interrogation: "连续提问",
+    noShare: "只提问、不分享",
+    genericOpener: "开场过于普通",
+    topicJump: "突然跳话题",
+    forcedHumor: "玩笑与语境不搭",
+    coldReply: "回复信息量太少",
+    overIntimacy: "关系未到就过度亲密",
+    generic: "表达过于空泛",
+    vagueInvite: "邀约不够具体",
+    adviceRush: "过早说教",
+    disrespect: "忽视边界",
+    overPraise: "夸奖过度",
+    overExplain: "解释过多",
+    tooLong: "单条信息过长",
+    tooShort: "内容过短",
+    mindReading: "把友好误读成喜欢",
+    gamePlaying: "用试探和冷处理操控互动",
+    scorekeeping: "用付出要求关系回报"
+  };
+
+
+
+  const PLAYER_RANKS = [
+    { min: 1, title: "开场新手" },
+    { min: 3, title: "接话练习生" },
+    { min: 5, title: "自然聊天者" },
+    { min: 8, title: "氛围建立者" },
+    { min: 12, title: "分寸掌握者" },
+    { min: 16, title: "稳定沟通者" },
+    { min: 22, title: "成熟表达者" },
+    { min: 28, title: "关系判断者" },
+    { min: 35, title: "稳定沟通教练" }
+  ];
+
+  const ACHIEVEMENTS = {
+    firstStep: { title: "迈出第一步", desc: "发送第一句训练消息", icon: "🌱" },
+    firstPass: { title: "首次通关", desc: "第一次通过正式关卡", icon: "🏁" },
+    threeStar: { title: "漂亮通关", desc: "获得一次三星评价", icon: "⭐" },
+    noInterrogation: { title: "不是采访", desc: "通关且整局没有连续提问", icon: "💬" },
+    respectBoundary: { title: "尊重边界", desc: "正确接受一次明确拒绝", icon: "🛡️" },
+    chapterGraduate: { title: "章节毕业", desc: "完成任意章节的全部五关", icon: "🎓" },
+    tenLevels: { title: "渐入佳境", desc: "累计通过10个正式关卡", icon: "🚀" },
+    hundredMessages: { title: "百句训练", desc: "累计发送100句训练消息", icon: "💯" },
+    streakThree: { title: "连续训练", desc: "连续3天完成训练", icon: "🔥" },
+    mistakeBreaker: { title: "打破旧习惯", desc: "完成一次错题专项重练", icon: "🔧" },
+    foundationGraduate: { title: "基础篇毕业", desc: "完成前30个正式关卡", icon: "🎖️" },
+    allLevels: { title: "正式版毕业", desc: "完成全部45个正式关卡", icon: "🏆" }
+  };
+
+  const ISSUE_LEVEL_MAP = {
+    pressure: [3, 11, 12, 20, 29], interrogation: [4, 17, 22], noShare: [4, 6, 21],
+    genericOpener: [1, 16, 18], topicJump: [3, 19], forcedHumor: [8, 19], coldReply: [3, 17, 20],
+    overIntimacy: [9, 24, 35, 41], mindReading: [35, 41, 45], gamePlaying: [34, 39], scorekeeping: [25, 42, 45], generic: [1, 18, 23], vagueInvite: [13, 26, 27], adviceRush: [7, 23],
+    disrespect: [15, 28, 29, 30], overPraise: [9, 22], overExplain: [24, 30], tooLong: [4, 23], tooShort: [3, 17]
+  };
+
+  const CHAPTER_SUMMARIES = {
+    1: "你已经掌握基础开场、接话和自然收尾。下一步要让表达更有个人内容。",
+    2: "你能通过分享、共情和轻松互动建立熟悉感。继续练习稳定输出，而不是偶尔灵光一现。",
+    3: "你开始能分辨回复节奏、关系投入和邀约时机。真正成熟的表现是不给对方压力。",
+    4: "你能处理资料少、短回复和冷场场景，也知道什么时候换话题、什么时候止损。",
+    5: "你不再只做倾听者，能够展示自己、具体欣赏对方，并坦诚表达兴趣。",
+    6: "你完成了邀约、改期、见面边界和拒绝处理训练。结果不一定如愿，但表达可以始终体面。",
+    7: "你能在轻松互动中保持真实，不靠表演、贬低或猜心制造所谓暧昧。",
+    8: "你开始用清楚表达、道歉、协商和一致行动处理成熟关系中的现实问题。",
+    9: "你能够区分友好与恋爱兴趣，也能在单向投入时保护自己并体面退出。"
+  };
+
+
+  const ABILITY_DIMENSIONS = {
+    opening: {
+      label: "自然开场", short: "开场", desc: "利用资料或场景开启话题，而不是只发通用问候。",
+      strengths: ["relevant", "openQuestion", "balanced"], issues: ["genericOpener", "tooShort", "interrogation"], chapters: [1, 4], levels: [1, 2, 16, 17, 18]
+    },
+    continuity: {
+      label: "接话延续", short: "接话", desc: "接住上一句话、留下回应空间，并在冷场时合理换题。",
+      strengths: ["relevant", "openQuestion", "balanced", "humor"], issues: ["topicJump", "coldReply", "generic", "interrogation", "mindReading"], chapters: [1, 2, 4], levels: [3, 6, 8, 18, 19]
+    },
+    sharing: {
+      label: "展示自己", short: "分享", desc: "不只提问或倾听，也能自然表达自己的经历和态度。",
+      strengths: ["share", "balanced", "interestSignal"], issues: ["noShare", "overExplain", "tooLong", "scorekeeping"], chapters: [2, 5], levels: [4, 6, 21, 24, 25]
+    },
+    empathy: {
+      label: "情绪回应", short: "共情", desc: "先理解对方的情绪和需求，再决定陪伴、提问或给建议。",
+      strengths: ["empathy", "respect", "apology"], issues: ["adviceRush", "generic", "pressure"], chapters: [2, 5], levels: [7, 10, 22, 23]
+    },
+    boundary: {
+      label: "分寸边界", short: "分寸", desc: "尊重回复节奏、拒绝和见面边界，避免催促与过早亲密。",
+      strengths: ["respect", "ending"], issues: ["pressure", "disrespect", "overIntimacy", "selfDegrade", "gamePlaying", "scorekeeping"], chapters: [3, 4, 6], levels: [11, 12, 15, 20, 28, 29, 30, 36, 38, 40, 42, 43, 44, 45]
+    },
+    progression: {
+      label: "表达推进", short: "推进", desc: "具体表达欣赏和兴趣，并在合适时机提出清楚、有退路的邀约。",
+      strengths: ["interestSignal", "specificCompliment", "concreteInvite", "respect"], issues: ["vagueInvite", "overPraise", "overIntimacy", "pressure"], chapters: [3, 5, 6], levels: [10, 13, 22, 24, 26, 27, 34, 37, 39]
+    }
+  };
+
+  const ISSUE_COACHING = {
+    pressure: "先把注意力从回复速度移回内容本身，发完一条后允许对方按自己的节奏回应。",
+    interrogation: "把多个问题删到只剩一个，并在问题前先加入一句自己的相关经历。",
+    noShare: "每次提问前先贡献一点自己的信息，让对话从采访变成交换。",
+    genericOpener: "从她的资料、当前场景或一个具体观察入手，避免任何人都能收到的开场。",
+    topicJump: "先用一句回应接住上一话题，再用过渡句换题，不要突然另起一章。",
+    forcedHumor: "玩笑必须建立在当前内容上；不确定时，清楚回应比硬抖机灵更好。",
+    coldReply: "至少补充一个态度、细节或容易回应的点，不要只回‘哈哈’‘嗯’。",
+    overIntimacy: "把亲密称呼和关系定义往后放，先靠持续、舒服的互动建立熟悉感。",
+    generic: "减少模板句，直接引用她刚才说过的具体信息。",
+    vagueInvite: "说清大致时间、活动和退出空间，例如‘周六下午喝咖啡，忙的话改天’。",
+    adviceRush: "先确认她是想倾诉还是想听建议，别急着接管问题。",
+    disrespect: "明确拒绝就是停止推进的信号；成熟沟通不以说服对方为目标。",
+    overPraise: "把夸奖落到一个具体细节，避免‘女神、完美、全世界最好’等夸张表达。",
+    overExplain: "保留核心态度，删掉反复澄清和自证，让一句话更轻。",
+    tooLong: "一条消息只保留一个重点；能删掉的背景解释先删掉。",
+    tooShort: "补充一个真实态度或细节，给对方至少一个可以接住的材料。",
+    mindReading: "以对方明确表达和持续行动为准，不要把礼貌、表情或接梗自动解释成喜欢。",
+    gamePlaying: "直接表达需求和安排，不用故意冷处理、测试或隐藏信息制造不安。",
+    scorekeeping: "帮助和付出必须自愿且有边界，不能事后拿来要求感情、机会或陪伴。"
+  };
+
+  let startupDataNotice = "";
+  let lockConfig = loadLockConfig();
+  let appUnlocked = !lockConfig.enabled;
+  let failedUnlockAttempts = 0;
+  let hiddenAt = 0;
+  const state = loadState();
+  const startupChapterUpdates = updateChapterAwards();
+  const startupAchievements = checkAchievements();
+  if (startupChapterUpdates.length || startupAchievements.length) saveState();
+  let currentView = "home";
+  let activeCourseId = null;
+  let activeCourseFeedback = null;
+  let session = null;
+  let deferredInstallPrompt = null;
+  let onboardingStep = 0;
+  let onboardingShownThisLoad = false;
+
+  const mainView = document.getElementById("mainView");
+  const dialog = document.getElementById("resultDialog");
+  const resultContent = document.getElementById("resultContent");
+  const retryBtn = document.getElementById("retryBtn");
+  const installBtn = document.getElementById("installBtn");
+  const onboardingDialog = document.getElementById("onboardingDialog");
+  const onboardingContent = document.getElementById("onboardingContent");
+  const onboardingNextBtn = document.getElementById("onboardingNextBtn");
+  const onboardingSkipBtn = document.getElementById("onboardingSkipBtn");
+  const onboardingDots = document.getElementById("onboardingDots");
+  const lockDialog = document.getElementById("lockDialog");
+  const unlockForm = document.getElementById("unlockForm");
+  const unlockPassword = document.getElementById("unlockPassword");
+  const unlockError = document.getElementById("unlockError");
+
+  function defaultState() {
+    return {
+      meta: {
+        schemaVersion: DATA_SCHEMA_VERSION,
+        lastOpenedVersion: APP_VERSION,
+        lastMigrationAt: null
+      },
+      unlocked: 1,
+      levels: {},
+      stats: {
+        totalMessages: 0,
+        totalSessions: 0,
+        scoreSum: 0,
+        issues: {},
+        strengths: {},
+        lastPlayed: null
+      },
+      game: {
+        xp: 0,
+        lastActiveDate: null,
+        currentStreak: 0,
+        bestStreak: 0,
+        trainingDays: [],
+        daily: null,
+        achievements: {},
+        chapterAwards: {},
+        mistakeMastery: {},
+        trainingHistory: [],
+        freePractice: { lastConfig: null, totalSessions: 0, lastReview: null },
+        learning: { completed: {}, attempts: {}, lastCourseId: null, totalCorrect: 0 },
+        personalization: { lastDiagnosisAt: null, lastPlanSignature: null },
+        activeSession: null,
+        totalHints: 0,
+        totalReferences: 0
+      },
+      settings: {
+        coachMode: true,
+        strictMode: false,
+        autoSave: true,
+        autoBackup: true,
+        theme: "system",
+        fontSize: "standard",
+        reduceMotion: false,
+        onboardingDone: false
+      }
+    };
+  }
+
+  function normalizeStateData(parsed) {
+    const base = defaultState();
+    const source = parsed && typeof parsed === "object" ? parsed : {};
+    const merged = {
+      ...base,
+      ...source,
+      meta: { ...base.meta, ...(source.meta || {}) },
+      stats: { ...base.stats, ...(source.stats || {}) },
+      game: {
+        ...base.game,
+        ...(source.game || {}),
+        achievements: { ...base.game.achievements, ...(source.game?.achievements || {}) },
+        chapterAwards: { ...base.game.chapterAwards, ...(source.game?.chapterAwards || {}) },
+        mistakeMastery: { ...base.game.mistakeMastery, ...(source.game?.mistakeMastery || {}) },
+        trainingHistory: Array.isArray(source.game?.trainingHistory) ? source.game.trainingHistory.slice(-120) : [],
+        freePractice: { ...base.game.freePractice, ...(source.game?.freePractice || {}) },
+        learning: {
+          ...base.game.learning,
+          ...(source.game?.learning || {}),
+          completed: { ...base.game.learning.completed, ...(source.game?.learning?.completed || {}) },
+          attempts: { ...base.game.learning.attempts, ...(source.game?.learning?.attempts || {}) }
+        },
+        personalization: { ...base.game.personalization, ...(source.game?.personalization || {}) }
+      },
+      settings: { ...base.settings, ...(source.settings || {}) }
+    };
+    if (merged.levels?.[15]?.completed && merged.unlocked < 16) merged.unlocked = 16;
+    const completedIds = Object.entries(merged.levels || {}).filter(([, record]) => record?.completed).map(([id]) => Number(id)).filter(Number.isFinite);
+    const highestCompleted = completedIds.length ? Math.max(...completedIds) : 0;
+    if (highestCompleted >= Number(merged.unlocked || 1) && highestCompleted < TOTAL_LEVELS) merged.unlocked = highestCompleted + 1;
+    if (merged.game.achievements?.allLevels && highestCompleted >= 30 && highestCompleted < TOTAL_LEVELS) {
+      merged.game.achievements.foundationGraduate ||= merged.game.achievements.allLevels;
+      delete merged.game.achievements.allLevels;
+    }
+    merged.unlocked = clamp(Number(merged.unlocked) || 1, 1, TOTAL_LEVELS);
+    merged.game.xp = Math.max(0, Number(merged.game.xp) || 0);
+    merged.game.trainingDays = Array.isArray(merged.game.trainingDays) ? merged.game.trainingDays.slice(-90) : [];
+    merged.game.activeSession = normalizeSessionDraft(merged.game.activeSession);
+    merged.settings.theme = ["system", "light", "dark"].includes(merged.settings.theme) ? merged.settings.theme : "system";
+    merged.settings.fontSize = ["small", "standard", "large"].includes(merged.settings.fontSize) ? merged.settings.fontSize : "standard";
+    merged.settings.reduceMotion = Boolean(merged.settings.reduceMotion);
+    merged.settings.onboardingDone = Boolean(merged.settings.onboardingDone);
+    merged.settings.autoBackup = merged.settings.autoBackup !== false;
+    merged.meta.schemaVersion = DATA_SCHEMA_VERSION;
