@@ -1,98 +1,14 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#7c3aed">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>心动训练营 V2.0</title>
-  <style>
-    :root{color-scheme:light dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f3ff;color:#231942}
-    .box{width:min(616px,calc(100% - 32px));padding:28px;border-radius:24px;background:#fff;box-shadow:0 16px 50px #5b21b622}
-    h1{margin:0 0 20px;font-size:clamp(28px,6vw,36px)}
-    #msg{line-height:1.6;word-break:break-word}
-    .bar{height:10px;border-radius:99px;background:#e9ddff;overflow:hidden}
-    .bar i{display:block;width:8%;height:100%;background:#7c3aed;transition:width .25s}
-    small{display:block;margin-top:20px;opacity:.72;line-height:1.6}
-    button{margin-top:16px;border:0;border-radius:12px;padding:12px 18px;background:#7c3aed;color:#fff;font-weight:700;font-size:16px}
-    @media(prefers-color-scheme:dark){body{background:#15111d;color:#f7f1ff}.box{background:#211a2d}.bar{background:#46385f}}
-  </style>
-</head>
-<body>
-  <main class="box">
-    <h1>心动训练营 V2.0</h1>
-    <p id="msg">正在读取完整训练程序……</p>
-    <div class="bar"><i id="progress"></i></div>
-    <small>首次载入后，关卡进度和聊天数据只保存在你的浏览器本地。</small>
-    <button id="retry" type="button" hidden>重新载入</button>
-  </main>
-<script>
-const msg=document.querySelector('#msg');
-const bar=document.querySelector('#progress');
-const retry=document.querySelector('#retry');
-
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#7c3aed"><link rel="manifest" href="./manifest.json?v=2007"><title>心动训练营 V2.0</title><style>:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f3ff;color:#231942}.box{width:min(616px,calc(100% - 32px));padding:28px;border-radius:24px;background:#fff;box-shadow:0 16px 50px #5b21b622}h1{margin:0 0 20px;font-size:clamp(28px,6vw,36px)}#msg{line-height:1.6;word-break:break-word}.bar{height:10px;border-radius:99px;background:#e9ddff;overflow:hidden}.bar i{display:block;width:8%;height:100%;background:#7c3aed;transition:width .25s}small{display:block;margin-top:20px;opacity:.72;line-height:1.6}button{margin-top:16px;border:0;border-radius:12px;padding:12px 18px;background:#7c3aed;color:#fff;font-weight:700;font-size:16px}@media(prefers-color-scheme:dark){body{background:#15111d;color:#f7f1ff}.box{background:#211a2d}.bar{background:#46385f}}</style></head><body><main class="box"><h1>心动训练营 V2.0</h1><p id="msg">正在准备完整训练程序……</p><div class="bar"><i id="progress"></i></div><small>程序载入后，关卡进度和聊天数据只保存在你的浏览器本地。</small><button id="retry" type="button" hidden>重新载入</button></main><script>
+const VERSION='2007';
+const msg=document.querySelector('#msg');const bar=document.querySelector('#progress');const retry=document.querySelector('#retry');
 function fail(text){throw new Error(text)}
-
-async function start(){
-  retry.hidden=true;
-  try{
-    if(!('DecompressionStream' in window)){
-      fail('浏览器版本过旧，请升级 Chrome、Edge 或 Safari 后再打开');
-    }
-
-    let encoded='';
-    for(let i=1;i<=12;i++){
-      msg.textContent=`正在读取训练程序 ${i}/12……`;
-      bar.style.width=`${8+Math.round(i/12*62)}%`;
-      const name=`webdata/part-${String(i).padStart(2,'0')}.txt?v=2005`;
-      const response=await fetch(name,{cache:'no-store'});
-      if(!response.ok) fail(`程序分块 ${i} 读取失败（HTTP ${response.status}）`);
-      const part=(await response.text()).replace(/\s/g,'');
-      if(!part || !/^[A-Za-z0-9+/=]+$/.test(part)) fail(`程序分块 ${i} 内容损坏`);
-      encoded+=part;
-    }
-
-    if(encoded.length<120000 || encoded.length%4!==0){
-      fail(`程序数据长度异常（${encoded.length}）`);
-    }
-
-    msg.textContent='正在校验训练程序……';
-    bar.style.width='74%';
-    let raw;
-    try{raw=atob(encoded)}catch(error){fail('程序编码校验失败，请清除网站缓存后重试')}
-    const compressed=Uint8Array.from(raw,char=>char.charCodeAt(0));
-    if(compressed.length<90000 || compressed[0]!==0x1f || compressed[1]!==0x8b){
-      fail(`程序压缩包不完整（${compressed.length}字节）`);
-    }
-
-    msg.textContent='正在解压训练内容……';
-    bar.style.width='84%';
-    const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
-    const html=await new Response(stream).text();
-    const htmlBytes=new TextEncoder().encode(html).length;
-    if(htmlBytes<300000 || !html.includes('<html') || !html.includes('心动训练营') || !html.includes('自由练习')){
-      fail(`训练页面校验失败（${htmlBytes}字节）`);
-    }
-
-    msg.textContent='载入完成';
-    bar.style.width='100%';
-    setTimeout(()=>{
-      document.open();
-      document.write(html);
-      document.close();
-    },60);
-  }catch(error){
-    console.error(error);
-    msg.textContent='载入失败：'+error.message;
-    retry.hidden=false;
-  }
-}
-
-retry.addEventListener('click',start);
-start();
-</script>
-</body>
-</html>
+function b64bytes(value){const raw=atob(value);return Uint8Array.from(raw,c=>c.charCodeAt(0))}
+function joinBytes(list){const total=list.reduce((n,x)=>n+x.length,0);const out=new Uint8Array(total);let offset=0;for(const x of list){out.set(x,offset);offset+=x.length}return out}
+function isGzip(bytes){return bytes&&bytes.length>2&&bytes[0]===0x1f&&bytes[1]===0x8b}
+async function unpack(bytes){if(!isGzip(bytes))return null;try{const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));const html=await new Response(stream).text();const ok=/<!doctype html/i.test(html)&&/<html/i.test(html)&&html.includes('心动训练营')&&html.includes('自由练习')&&html.includes('课程')&&html.includes('报告')&&html.includes('设置')&&html.includes('</html>');return ok?html:null}catch{return null}}
+async function decodeProgram(parts){const candidates=[];try{const whole=b64bytes(parts.join(''));if(isGzip(whole))candidates.push(whole)}catch{}try{const separate=joinBytes(parts.map(b64bytes));if(isGzip(separate))candidates.push(separate)}catch{}for(const bytes of candidates){const html=await unpack(bytes);if(html)return html}fail('程序数据校验失败，请稍后重新打开')}
+async function clearLegacyCache(){if(!/^https?:$/.test(location.protocol))return true;const clean=new URLSearchParams(location.search).get('clean');if(clean===VERSION)return true;msg.textContent='正在清理旧版缓存……';try{if('serviceWorker'in navigator){const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()))}if('caches'in window){const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)))}}catch{}const url=new URL(location.href);url.search='';url.searchParams.set('clean',VERSION);url.searchParams.set('t',Date.now());location.replace(url.href);return false}
+async function start(){retry.hidden=true;try{if(!('DecompressionStream'in window))fail('浏览器版本过旧，请升级 Chrome 或 Edge 后再打开');if(!await clearLegacyCache())return;const parts=[];for(let i=1;i<=12;i++){msg.textContent=`正在读取训练程序 ${i}/12……`;bar.style.width=`${8+Math.round(i/12*62)}%`;const path=`webdata/part-${String(i).padStart(2,'0')}.txt`;const response=await fetch(path,{cache:'no-store'});if(!response.ok)fail(`程序文件 ${i} 读取失败（HTTP ${response.status}）`);const part=(await response.text()).replace(/\s/g,'');if(!part||!/^[A-Za-z0-9+/=]+$/.test(part))fail(`程序文件 ${i} 内容损坏`);parts.push(part)}msg.textContent='正在校验并解压训练程序……';bar.style.width='82%';let html=await decodeProgram(parts);html=html.replace('</head>','<link rel="manifest" href="./manifest.json?v=2007"><meta name="apple-mobile-web-app-capable" content="yes"></head>');msg.textContent='载入完成';bar.style.width='100%';try{if('serviceWorker'in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register('./sw.js?v=2007',{updateViaCache:'none'}).catch(()=>{})}catch{}setTimeout(()=>{document.open();document.write(html);document.close()},60)}catch(error){console.error(error);msg.textContent='载入失败：'+error.message;retry.hidden=false}}
+retry.addEventListener('click',start);start();
+</script></body></html>
