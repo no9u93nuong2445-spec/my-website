@@ -1,12 +1,6 @@
-const CACHE_NAME = 'heart-training-v2007';
-const CORE_FILES = [
-  './index.html',
-  './manifest.json',
-  './icon.svg',
-  ...Array.from({ length: 12 }, (_, index) =>
-    `./webdata/part-${String(index + 1).padStart(2, '0')}.txt`
-  )
-];
+const CACHE_NAME = 'heart-training-v208';
+const FALLBACK_PAGE = './final-v208.html';
+const CORE_FILES = [FALLBACK_PAGE, './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -44,7 +38,7 @@ self.addEventListener('fetch', event => {
       .catch(async () => {
         const cached = await caches.match(canonical);
         if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match('./index.html');
+        if (event.request.mode === 'navigate') return caches.match(FALLBACK_PAGE);
         throw new Error('offline resource unavailable');
       })
   );
