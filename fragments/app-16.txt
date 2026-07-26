@@ -1,0 +1,268 @@
+      state.game.freePractice.lastConfig = { ...completedSession.freeConfig };
+      state.game.freePractice.lastReview = { id: historyEntry.id, date: historyEntry.date, avg: result.avg, passed: Boolean(result.passed), goal: completedSession.freeConfig.goal };
+    }
+    const respectedRejection = completedSession.analyses.some(item => item.flags.respectRejection) && REJECTION_LEVEL_IDS.includes(completedSession.baseLevelId || completedSession.level.id);
+    const unlockedNow = checkAchievements({
+      passed: result.passed,
+      formalPass: !completedSession.isFree && !completedSession.isMistake && result.passed,
+      sessionIssues,
+      respectedRejection,
+      mistakePassed: completedSession.isMistake && result.passed
+    });
+    completedSession.newAchievements.push(...unlockedNow);
+    completedSession.newAchievements = [...new Set(completedSession.newAchievements)];
+    clearActiveSession(false);
+    saveState();
+
+    const topIssues = Object.entries(sessionIssues).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const issueText = topIssues.length ? topIssues.map(([key, count]) => `<li>${ISSUE_LABELS[key] || key}：${count}次</li>`).join("") : "<li>本局没有明显重复问题。</li>";
+    const achievementText = completedSession.newAchievements.length ? `<div class="unlock-box"><strong>新成就</strong>${completedSession.newAchievements.map(id => `<span>${ACHIEVEMENTS[id].icon} ${escapeHtml(ACHIEVEMENTS[id].title)}</span>`).join("")}</div>` : "";
+    const chapterText = chapterUpdates.length ? chapterUpdates.map(item => `<div class="chapter-unlock"><strong>第${item.chapterId}章结业：${item.grade}级</strong><span>${item.avg}分 · +${item.reward} XP</span><p>${escapeHtml(item.summary)}</p></div>`).join("") : "";
+    const title = completedSession.isFree ? (result.passed ? "自由训练目标达成" : "自由训练复盘") : completedSession.isMistake ? (result.passed ? "专项纠错成功" : "专项仍需练习") : (result.passed ? "通关成功" : "本次未通关");
+    const freeReviewHtml = completedSession.isFree ? buildFreePracticeReview(completedSession, result, sessionIssues) : "";
+    const nextPlan = buildTrainingPlan(state, 1)[0];
+    const nextPlanText = nextPlan ? `<div class="next-plan-box"><strong>系统建议下一步：${escapeHtml(nextPlan.title)}</strong><span>${escapeHtml(nextPlan.reason)}</span></div>` : "";
+
+    resultContent.innerHTML = `
+      <div class="result-title"><h2>${title}</h2><div class="result-score">${result.avg}</div></div>
+      <p>${escapeHtml(result.reason)}</p>
+      <p class="stars" style="font-size:24px">${"★".repeat(stars)}${"☆".repeat(3-stars)}</p>
+      <div class="hero-grid">
+        <div class="metric"><strong>${bestScore}</strong><span>最佳单句</span></div>
+        <div class="metric"><strong>${minScore}</strong><span>最低单句</span></div>
+        <div class="metric"><strong>+${completedSession.sessionXp}</strong><span>本局经验</span></div>
+      </div>
+      ${chapterText}${achievementText}${freeReviewHtml}${nextPlanText}
+      <h3 style="margin-top:18px">本局主要问题</h3>
+      <ul class="feedback-list">${issueText}</ul>
+      <div class="reference-box" style="margin-top:14px">${result.passed ? "不要只记住参考句子，重点记住：回应、分享、留空间。" : "建议重新挑战，优先修正本局出现次数最多的问题。"}</div>
+    `;
+
+    dialog.showModal();
+
+    const retryHandler = event => {
+      event.preventDefault();
+      dialog.close();
+      if (completedSession.isMistake) startMistakeTraining(completedSession.focusIssue);
+      else if (completedSession.isFree) startFreeSession(completedSession.freeConfig);
+      else startLevel(completedSession.level.id);
+      retryBtn.removeEventListener("click", retryHandler);
+    };
+    retryBtn.addEventListener("click", retryHandler);
+
+    dialog.addEventListener("close", function onClose() {
+      dialog.removeEventListener("close", onClose);
+      if (!session || !session.finished) return;
+      session = null;
+      navTo(completedSession.isFree ? "free" : "home");
+    });
+  }
+
+  function buildFreePracticeReview(completedSession, result, sessionIssues) {
+    const analyses = completedSession.analyses;
+    const sorted = analyses.map((item, index) => ({ ...item, index })).sort((a,b) => b.score - a.score);
+    const best = sorted[0];
+    const weakest = sorted[sorted.length - 1];
+    const status = getFreeGoalStatus(completedSession);
+    const goal = FREE_PRACTICE_OPTIONS.goals[completedSession.freeConfig.goal];
+    const topTopics = Object.entries(completedSession.memory.topicCounts || {}).sort((a,b) => b[1]-a[1]).slice(0,3);
+    const questionTotal = analyses.reduce((sum, item) => sum + Number(item.questionCount || 0), 0);
+    const shareTotal = completedSession.counters.share || 0;
+    const balanceText = questionTotal > shareTotal * 2 + 2 ? "提问明显多于分享，容易像采访。" : shareTotal === 0 ? "这局几乎没有展示自己，对方缺少了解你的材料。" : "提问与自我分享基本保持了交换感。";
+    const bestText = best ? completedSession.messages.filter(item => item.from === "me")[best.index]?.text || "" : "";
+    const weakText = weakest ? completedSession.messages.filter(item => item.from === "me")[weakest.index]?.text || "" : "";
+    const topIssue = Object.entries(sessionIssues).sort((a,b) => b[1]-a[1])[0]?.[0];
+    const recommendation = topIssue ? (ISSUE_COACHING[topIssue] || "下一局优先修正出现次数最多的问题。") : result.passed ? "下一局可以提高难度或换成更冷淡的角色设定，检验稳定性。" : `围绕“${goal.label}”再练一次，先完成关键动作，再追求更高分。`;
+    return `
+      <div class="free-review">
+        <div class="section-title"><div><h3>自由聊天完整复盘</h3><p class="small">${escapeHtml(describeFreeConfig(completedSession.freeConfig))}</p></div><span class="goal-result ${result.passed ? "passed" : ""}">${result.passed ? "目标达成" : "尚未达成"}</span></div>
+        <div class="review-grid">
+          <div><strong>目标完成度</strong><span>${escapeHtml(status.current)}</span></div>
+          <div><strong>最终关系状态</strong><span>${escapeHtml(getVisibleCharacterState(completedSession))}</span></div>
+          <div><strong>互动结构</strong><span>${escapeHtml(balanceText)}</span></div>
+          <div><strong>主要话题</strong><span>${topTopics.length ? topTopics.map(([key,count]) => `${TOPIC_LABELS[key] || key}×${count}`).join("、") : "没有形成稳定话题"}</span></div>
+        </div>
+        ${best ? `<div class="review-moment good"><strong>本局最佳一句 · ${best.score}分</strong><p>${escapeHtml(bestText)}</p><small>${escapeHtml(best.strengths?.[0] || "表达自然且符合当前场景。")}</small></div>` : ""}
+        ${weakest ? `<div class="review-moment weak"><strong>最需要调整的一句 · ${weakest.score}分</strong><p>${escapeHtml(weakText)}</p><small>${escapeHtml(weakest.issues?.[0]?.text || "可以增加相关信息和互动空间。")}</small></div>` : ""}
+        <div class="review-next"><strong>下一局训练建议</strong><span>${escapeHtml(recommendation)}</span></div>
+      </div>`;
+  }
+
+  function countSessionIssues(analyses) {
+    const result = {};
+    analyses.forEach(item => item.issues.forEach(issue => {
+      result[issue.key] = (result[issue.key] || 0) + 1;
+    }));
+    return result;
+  }
+
+  function renderOnboardingStep() {
+    const step = ONBOARDING_STEPS[onboardingStep] || ONBOARDING_STEPS[0];
+    if (onboardingContent) onboardingContent.innerHTML = `<div class="onboarding-visual">${step.icon}</div><div class="onboarding-copy"><span class="version-chip">第${onboardingStep + 1}/${ONBOARDING_STEPS.length}步</span><h2 id="onboardingTitle">${escapeHtml(step.title)}</h2><p>${escapeHtml(step.text)}</p><div class="onboarding-points">${step.points.map((point, index) => `<div class="onboarding-point"><b>${index + 1}</b><span>${escapeHtml(point)}</span></div>`).join("")}</div></div>`;
+    if (onboardingDots) onboardingDots.innerHTML = ONBOARDING_STEPS.map((_, index) => `<span class="${index === onboardingStep ? "active" : ""}"></span>`).join("");
+    if (onboardingNextBtn) onboardingNextBtn.textContent = onboardingStep === ONBOARDING_STEPS.length - 1 ? "开始训练" : "下一步";
+  }
+
+  function finishOnboarding() {
+    state.settings.onboardingDone = true;
+    saveState();
+    try { onboardingDialog?.close?.(); } catch {}
+  }
+
+  function openOnboarding(force = false) {
+    if (!force && (state.settings.onboardingDone || onboardingShownThisLoad)) return;
+    onboardingStep = 0;
+    onboardingShownThisLoad = true;
+    renderOnboardingStep();
+    try { onboardingDialog?.showModal?.(); } catch {}
+  }
+
+  function setupViewportHandling() {
+    const update = () => {
+      const viewport = window.visualViewport;
+      const height = viewport?.height || window.innerHeight || 800;
+      const fullHeight = window.innerHeight || height;
+      document.documentElement?.style?.setProperty?.("--app-viewport-height", `${Math.round(height)}px`);
+      document.documentElement?.style?.setProperty?.("--keyboard-offset", `${Math.max(0, Math.round(fullHeight - height))}px`);
+      document.body?.classList?.toggle("keyboard-open", Boolean(session) && fullHeight - height > 120);
+      if (session && document.activeElement?.id === "messageInput") ensureComposerVisible(false);
+    };
+    update();
+    window.visualViewport?.addEventListener?.("resize", update);
+    window.visualViewport?.addEventListener?.("scroll", update);
+    window.addEventListener?.("resize", update);
+  }
+
+  if (typeof globalThis !== "undefined") {
+    globalThis.__heartTrainingTest = {
+      APP_VERSION,
+      DATA_SCHEMA_VERSION,
+      TOTAL_LEVELS,
+      REJECTION_LEVEL_IDS,
+      CHARACTERS,
+      CHARACTER_DIALOGUE,
+      LEVELS,
+      createSession,
+      analyzeMessage,
+      updateSessionMetrics,
+      updateConversationMemory,
+      generateResponse,
+      detectTopicsFromText,
+      getVisibleCharacterState,
+      evaluateSession,
+      defaultState,
+      createDailyTasks,
+      ensureDailyState,
+      xpThreshold,
+      getPlayerLevel,
+      getRankTitle,
+      calculateChapterReport,
+      calculateAbilityProfile,
+      getOverallAbility,
+      getTrainingTrend,
+      getStageDiagnosis,
+      getIssueMastery,
+      getMasteryList,
+      buildTrainingPlan,
+      recordTrainingHistory,
+      COURSE_SECTIONS,
+      COURSES,
+      ensureLearningState,
+      getCourseById,
+      getCourseProgress,
+      getRecommendedCourse,
+      submitCourseAnswer,
+      renderCourses,
+      renderCourseDetail,
+      FREE_PRACTICE_OPTIONS,
+      renderFreePractice,
+      startFreeSession,
+      normalizeFreeConfig,
+      describeFreeConfig,
+      buildFreeOpening,
+      buildFreeLevel,
+      getFreeMetricAdjustments,
+      getFreeGoalStatus,
+      buildFreePracticeReview,
+      ABILITY_DIMENSIONS,
+      ISSUE_LEVEL_MAP,
+      ACHIEVEMENTS,
+      state,
+      APP_VERSION,
+      ONBOARDING_STEPS,
+      getResolvedTheme,
+      normalizeSessionDraft,
+      snapshotSession,
+      restoreSessionDraft,
+      getActiveSessionSummary,
+      applyAppearance,
+      DATA_SCHEMA_VERSION,
+      BACKUP_STORAGE_KEY,
+      LOCK_STORAGE_KEY,
+      EXPORT_FORMAT,
+      normalizeStateData,
+      checksumString,
+      readLocalBackups,
+      createLocalBackup,
+      deleteLocalBackup,
+      isBackupValid,
+      getStateSummary,
+      buildExportEnvelope,
+      parseImportedPayload,
+      deleteTrainingHistory,
+      loadLockConfig,
+      hasSecureLockSupport,
+      derivePasswordVerifier,
+      setLocalPassword,
+      verifyLocalPassword
+    };
+  }
+
+  document.querySelectorAll(".nav-item").forEach(button => {
+    button.addEventListener("click", () => navTo(button.dataset.view));
+  });
+
+  window.addEventListener("beforeinstallprompt", event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installBtn.classList.remove("hidden");
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.classList.add("hidden");
+  });
+
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(console.warn));
+  }
+
+  onboardingNextBtn?.addEventListener("click", () => {
+    if (onboardingStep < ONBOARDING_STEPS.length - 1) { onboardingStep += 1; renderOnboardingStep(); }
+    else finishOnboarding();
+  });
+  onboardingSkipBtn?.addEventListener("click", finishOnboarding);
+  unlockForm?.addEventListener("submit", event => { event.preventDefault(); handleUnlock(); });
+  lockDialog?.addEventListener?.("cancel", event => event.preventDefault());
+  window.addEventListener?.("beforeunload", () => persistActiveSession(session));
+  document.addEventListener?.("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      persistActiveSession(session);
+      hiddenAt = Date.now();
+      return;
+    }
+    if (lockConfig.enabled && appUnlocked && lockConfig.autoLockMinutes > 0 && hiddenAt && Date.now() - hiddenAt >= lockConfig.autoLockMinutes * 60 * 1000) {
+      showLockScreen("应用离开时间较长，已自动锁定。");
+    }
+  });
+  try { window.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => { if (state.settings.theme === "system") applyAppearance(); }); } catch {}
+
+  applyAppearance();
+  setupViewportHandling();
+  render();
+  if (lockConfig.enabled) showLockScreen();
+  else openOnboarding(false);
+})();
