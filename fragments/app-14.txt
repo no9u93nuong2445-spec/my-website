@@ -1,0 +1,266 @@
+      score -= 14;
+      addIssue("overPraise", "夸奖太夸张，容易显得不真诚或有目的性。");
+    }
+    if (flags.selfDegrade) {
+      score -= 20;
+      addIssue("disrespect", "用自我贬低换回应，会给对方增加情绪负担。");
+    }
+    if (flags.coldReply) {
+      score -= 16;
+      addIssue("coldReply", "回复信息量太少，几乎没有给对方继续接话的材料。");
+    }
+    if (flags.overExplain) {
+      score -= 9;
+      addIssue("overExplain", "解释过多容易显得紧张，保留核心意思会更自然。");
+    }
+    if (length < 2) {
+      score -= 24;
+      addIssue("tooShort", "内容太短，几乎没有可回应的信息。");
+    } else if (length < 4 && !flags.ending && !flags.respectRejection && !flags.coldReply) {
+      score -= flags.genericOpener ? 6 : 9;
+      addIssue("tooShort", "内容偏短，容易让对话停住。");
+    }
+    if (length > 180) {
+      score -= 15;
+      addIssue("tooLong", "单条内容太长，刚认识时阅读压力较大。");
+    } else if (length > 105) {
+      score -= 6;
+      addIssue("tooLong", "这条信息略长，可以拆掉解释性内容。");
+    }
+    if (!relevant && !flags.share && !flags.ending && !flags.respectRejection && !flags.greeting && !flags.genericOpener && !flags.coldReply) {
+      score -= 5;
+      addIssue("generic", "表达缺少与当前话题的连接，容易显得模板化。");
+    }
+
+    if (REJECTION_LEVEL_IDS.includes(currentSession.level.id) && !flags.respectRejection) {
+      score -= 18;
+      addIssue("disrespect", "这一关需要明确接受拒绝，而不是继续争取。");
+    }
+    if (currentSession.level.id === 13 && flags.invite && (!flags.concreteTime || !flags.concreteActivity)) {
+      score -= 5;
+      addIssue("vagueInvite", "这一关的邀约需要同时说明大致时间和活动。");
+    }
+
+    if (state.settings.strictMode) score -= 5;
+    score = clamp(Math.round(score), 0, 100);
+
+    return {
+      text: normalized,
+      score,
+      questionCount,
+      relevant,
+      openQuestion,
+      specificQuestion,
+      balanced,
+      intents,
+      context: { topicMatch: topicMatch.groups, lastContext },
+      flags,
+      strengths,
+      issues
+    };
+  }
+
+  function countQuestions(text) {
+    const marked = (text.match(/[？?]/g) || []).length;
+    if (marked > 0) return Math.min(marked, 4);
+    const clauses = text.split(/[。！!；;，,]/).map(item => item.trim()).filter(Boolean);
+    let count = 0;
+    clauses.forEach(clause => {
+      const endsLikeQuestion = /(吗|呢|么|嘛)$/.test(clause);
+      const asksDirectly = /^(你|那你|所以你|平时你|周末你|后来|为什么|怎么|哪|什么|谁|几|多少|有没有)/.test(clause) && /(什么|怎么|为什么|哪|谁|几|多少|是否|有没有|喜欢|觉得|感觉|会不会|想不想|要不要)/.test(clause);
+      if (endsLikeQuestion || asksDirectly) count += 1;
+    });
+    return Math.min(count, 4);
+  }
+
+  function detectSelfShare(text) {
+    if (/(^|[，。！？! ])我(也|倒|觉得|感觉|以前|之前|上次|上周|昨晚|前几天|最近|今天|平时|有时|有时候|周末|工作日|周一|周二|周三|周四|周五|刚|准备|打算|一般|通常|自己|更|还|挺|特别|比较|可能|喜欢|不太|会|遇到|试过|属于|这边)/.test(text)) return true;
+    return /(跟你一样|我这边|对我来说|换成我|我也有过|我之前也)/.test(text);
+  }
+
+  function analyzeContext(text) {
+    return {
+      hasEmotion: /(累|烦|难受|委屈|崩溃|压力|生气|不开心|郁闷|辛苦|糟糕|心情不好)/.test(text),
+      isBusyOrTired: /(忙|加班|开会|项目|工作|上班|累|困|休息|没空)/.test(text),
+      isCold: /^(嗯+|哦+|哈哈+|还行|一般|是吗|没有|不知道|好吧)[。！!？?]*$/.test(text.trim()),
+      isRejection: /(不想|不合适|只想做朋友|普通朋友|别联系|不要再|没感觉|不考虑|不方便见|不想见)/.test(text),
+      isLight: /(哈哈|好玩|有意思|猫|探店|周末|电影|游戏|旅游|甜品)/.test(text),
+      isConflict: /(取消|迟到|影响.*安排|不满|道歉|说清楚|打乱|失约|不同意|不一样)/.test(text)
+    };
+  }
+
+  function refersToLastMessage(text) {
+    return /(这个|那个|你说的|刚才|原来|难怪|后来|然后|这么说|这样的话)/.test(text);
+  }
+
+  function matchTopics(source, target) {
+    const groups = getTopicGroups();
+    const matched = Object.entries(groups)
+      .filter(([, words]) => words.some(word => source.includes(word)) && words.some(word => target.includes(word)))
+      .map(([name]) => name);
+    return { matched: matched.length > 0, groups: matched };
+  }
+
+  function updateSessionMetrics(analysis, currentSession = session) {
+    if (!currentSession) throw new Error("缺少训练会话，无法更新状态");
+    const { flags, issues, relevant, openQuestion } = analysis;
+    const metrics = currentSession.metrics;
+
+    const positive = analysis.score >= 75;
+    const severe = flags.sexual || flags.insult || flags.pressure || (REJECTION_LEVEL_IDS.includes(currentSession.level.id) && !flags.respectRejection);
+
+    metrics.comfort = clamp(metrics.comfort + (positive ? 6 : analysis.score >= 60 ? 2 : -7), 0, 100);
+    metrics.interest = clamp(metrics.interest + (positive ? 4 : analysis.score >= 60 ? 1 : -4), 0, currentSession.char.maxInterest || 100);
+    metrics.pressure = clamp(metrics.pressure + (severe ? 22 : issues.length >= 2 ? 8 : -3), 0, 100);
+    metrics.respect = clamp(metrics.respect + (flags.respectRejection || flags.acceptUncertainty || flags.ending ? 8 : severe ? -15 : 1), 0, 100);
+
+    if (flags.share) currentSession.counters.share += 1;
+    if (relevant) currentSession.counters.relevant += 1;
+    if (flags.empathy) currentSession.counters.empathy += 1;
+    if (flags.humor && !flags.insult) currentSession.counters.humor += 1;
+    if (flags.ending) currentSession.counters.ending += 1;
+    if (flags.invite) currentSession.counters.invite += 1;
+    if (flags.invite && flags.concreteTime && flags.concreteActivity) currentSession.counters.concreteInvite += 1;
+    if (!flags.pressure) currentSession.counters.noPressure += 1;
+    if (openQuestion) currentSession.counters.openQuestion += 1;
+    if (flags.honestCuriosity) currentSession.counters.honestCuriosity += 1;
+    if (flags.specificCompliment) currentSession.counters.specificCompliment += 1;
+    if (!flags.adviceRush) currentSession.counters.noAdviceRush += 1;
+    if (flags.acceptUncertainty) currentSession.counters.acceptUncertainty += 1;
+    if (flags.respectRejection) currentSession.counters.respectRejection += 1;
+    if (flags.interestSignal) currentSession.counters.interestSignal += 1;
+    if (flags.apology) currentSession.counters.apology += 1;
+    if (flags.selfBoundary) currentSession.counters.selfBoundary += 1;
+    if (flags.respectfulDifference) currentSession.counters.respectfulDifference += 1;
+    if (analysis.balanced) currentSession.counters.balanced += 1;
+    if (!flags.sexual && !flags.insult && !flags.pressure) currentSession.counters.respect += 1;
+  }
+
+  function buildFeedback(analysis, currentSession, response = null) {
+    const score = analysis.score;
+    const grade = score >= 88 ? "很自然" : score >= 78 ? "可以发送" : score >= 65 ? "基本可用" : score >= 45 ? "建议修改" : "明显不合适";
+    let feeling = "她大概率能正常接收这句话。";
+    if (analysis.flags.scorekeeping) feeling = "她可能会觉得过去的帮助被变成了情感债务，需要立刻保护边界。";
+    else if (analysis.flags.mindReading) feeling = "她可能会觉得自己的明确表达被忽略，普通友好被强行解释成暧昧。";
+    else if (analysis.flags.gamePlaying) feeling = "她可能会觉得你在测试或操控互动，而不是坦诚沟通。";
+    else if (analysis.flags.pressure) feeling = "她可能会感到被催促，甚至需要为回复速度向你解释。";
+    else if (analysis.flags.insult || analysis.flags.sexual) feeling = "她可能会感到被冒犯，并直接结束聊天。";
+    else if (analysis.questionCount >= 3) feeling = "她可能不知道先回答哪个问题，聊天像在接受采访。";
+    else if (analysis.flags.intimacy) feeling = "她可能觉得关系推进得太快，产生防备。";
+    else if (analysis.flags.interestSignal && score >= 70) feeling = "她会知道你在认真了解她，同时不需要被迫立刻定义关系。";
+    else if (analysis.flags.coldReply) feeling = "她很难从这句话里找到继续展开的内容。";
+    else if (analysis.issues.some(item => item.key === "topicJump")) feeling = "她可能觉得你没有在听，而是在按自己的话术走。";
+    else if (analysis.balanced && score >= 78) feeling = "她会觉得你既有回应，也愿意分享，继续接话的压力较小。";
+    else if (score >= 82) feeling = "她会觉得你有在听，表达也比较有分寸。";
+    else if (score < 60) feeling = "她可能只会礼貌短回，或者不知道怎样接下去。";
+
+    let reference = currentSession.level.references?.[0] || "先回应她的内容，再加入一点自己的信息，最后只留一个容易回答的问题。";
+    const issueKeys = new Set(analysis.issues.map(item => item.key));
+    if (analysis.flags.scorekeeping) reference = "把帮助和关系结果分开。只做你自愿且能承受的事，不要求对方因此给机会。";
+    else if (analysis.flags.mindReading) reference = "以她明确说过的话和持续行动为准，不从表情、礼貌或单次主动里推导隐藏感情。";
+    else if (analysis.flags.gamePlaying) reference = "直接说明真实安排和感受，不用故意冷淡、测试或隐瞒信息制造反应。";
+    else if (analysis.flags.pressure) reference = "删掉对回复速度的质问，直接回到她当前说的内容；不要靠补发消息催回应。";
+    else if (analysis.questionCount >= 2) reference = "只保留一个最值得问的问题，其余内容改成你的观察或经历。";
+    else if (issueKeys.has("genericOpener")) reference = "从她的资料、头像或当前场景抓一个具体点，再加一点你的真实反应。";
+    else if (issueKeys.has("topicJump")) reference = "先用一句话接住她刚才的内容，再决定要不要自然延伸新话题。";
+    else if (issueKeys.has("noShare")) reference = "把句式改成：回应她＋分享一点自己＋一个问题。";
+    else if (issueKeys.has("coldReply")) reference = "至少补充一个真实反应或相关细节，让对方有东西可接。";
+    else if (analysis.flags.adviceRush) reference = "先说“听起来确实挺烦”，再问她是想吐槽一下，还是想一起想办法。";
+    else if (issueKeys.has("vagueInvite")) reference = "邀约最好包含：具体活动＋大致时间＋对方不方便也没关系。";
+    else if (issueKeys.has("forcedHumor")) reference = "先回应当前话题，再从她刚说的细节里开玩笑，不要突然套网络梗。";
+    else if (analysis.flags.overPraise) reference = "把夸奖落到一个具体细节，避免“女神、完美、仙女”这类夸张称呼。";
+    else if (analysis.flags.overExplain) reference = "保留最核心的一两句，删掉“你别误会、我只是、其实因为”等解释。";
+    else if (analysis.flags.interestSignal && analysis.score < 70) reference = "只表达你自己的感受，例如‘我想继续了解你’，不要要求她立即确认关系或给出同等回应。";
+    else if (analysis.flags.insult || analysis.flags.sexual) reference = "停止使用冒犯、打压或性暗示，回到公开、安全、双方都舒服的话题。";
+    else if (analysis.balanced) reference = "这句结构已经比较完整，继续保持自然语气，不必再额外补一条。";
+
+    let nextStep = "发送后等待她回应，不要马上补发第二条。";
+    if (analysis.flags.ending) nextStep = "这一轮已经自然收尾，不需要为了完成轮数继续补消息。";
+    else if (analysis.flags.respectRejection) nextStep = "保持边界，不要换一种说法再次争取。";
+    else if (analysis.score < 60) nextStep = "先根据上面的方向修改，再尝试下一轮；不要用多发消息来补救。";
+    else if (currentSession.metrics.pressure >= 60) nextStep = "当前压力偏高，下一句降低问题密度，必要时直接结束聊天。";
+    else if (analysis.balanced) nextStep = "等她回答你留下的那个问题，再从她的新信息继续。";
+
+    return { score, grade, strengths: analysis.strengths, issues: analysis.issues, intents: analysis.intents, feeling, reference, nextStep, reaction: response?.reason || "她会根据当前关系状态和你的表达继续回应。", stateLabel: response?.state || getVisibleCharacterState(currentSession) };
+  }
+
+  function generateResponse(analysis, currentSession) {
+    const { flags } = analysis;
+    const dialogue = CHARACTER_DIALOGUE[currentSession.char.id];
+    const memory = currentSession.memory;
+    const stateLabel = getVisibleCharacterState(currentSession);
+    const topic = chooseActiveTopic(analysis, currentSession);
+    const highPressure = currentSession.metrics.pressure >= 72 || flags.insult || flags.sexual;
+    const freeFollowup = Number(currentSession.freeResponseAdjustment || 0);
+    const engagementComfort = clamp(56 - Math.round(freeFollowup * 0.35), 44, 68);
+    const engagementInterest = clamp(46 - Math.round(freeFollowup * 0.25), 34, 60);
+    const engaged = currentSession.metrics.comfort >= engagementComfort && currentSession.metrics.interest >= engagementInterest && currentSession.metrics.pressure < 45;
+    const followupScore = clamp(72 - freeFollowup, 60, 88);
+    const levelReplies = currentSession.level.chapter >= 4 ? currentSession.level.replies : null;
+    let pool = [];
+    let reason = "她在结合前文和当前关系状态回应。";
+    let key = "fallback";
+
+    if (highPressure) {
+      pool = levelReplies?.boundary || dialogue.boundary;
+      key = "boundary";
+      reason = "压力或越界信号较高，她会优先保护边界，而不是继续展开话题。";
+    } else if (REJECTION_LEVEL_IDS.includes(currentSession.level.id)) {
+      if (flags.respectRejection) {
+        pool = levelReplies?.positive || ["谢谢你理解。", "嗯，谢谢你尊重我的想法。", "好，我也希望之后相处能轻松一点。"];
+        key = "accepted-rejection";
+        reason = "你明确接受了拒绝，她不需要再次防御或解释。";
+      } else {
+        pool = levelReplies?.boundary || dialogue.boundary;
+        key = "rejection-boundary";
+        reason = "她已经明确拒绝，继续争取会让她重复强调边界。";
+      }
+    } else if (flags.ending) {
+      pool = levelReplies?.positive || dialogue.closing;
+      key = "closing";
+      reason = "你给出了自然收尾，她会轻松结束，而不是被迫继续聊天。";
+    } else if (flags.invite) {
+      const proper = flags.concreteTime && flags.concreteActivity && flags.acceptUncertainty;
+      if (proper && currentSession.metrics.comfort >= 42 && currentSession.metrics.pressure < 45) {
+        pool = levelReplies?.positive || dialogue.inviteYes;
+        key = "invite-yes";
+        reason = "邀约清楚又留有选择空间，当前舒适度允许她认真考虑。";
+      } else {
+        pool = (analysis.score < 55 ? levelReplies?.negative : levelReplies?.neutral) || dialogue.inviteMaybe;
+        key = "invite-maybe";
+        reason = proper ? "邀约本身合适，但她仍会按自己的节奏确认安排。" : "邀约还不够具体或关系投入不足，她会先保持观望。";
+      }
+    } else if (flags.interestSignal) {
+      const fit = currentSession.level.chapter >= 5 || currentSession.metrics.comfort >= 56 || currentSession.turn >= 3;
+      pool = fit
+        ? (levelReplies?.positive || INTEREST_RESPONSES[currentSession.char.id].warm)
+        : (levelReplies?.neutral || INTEREST_RESPONSES[currentSession.char.id].cautious);
+      key = fit ? "interest-warm" : "interest-cautious";
+      reason = fit ? "你坦诚表达了兴趣，又没有要求她立即表态，她可以按自己的节奏回应。" : "关系阶段还浅，她会先放慢节奏，避免过早定义关系。";
+    } else if (flags.respectRejection || flags.acceptUncertainty) {
+      pool = levelReplies?.positive || dialogue.warm;
+      key = "respect-space";
+      reason = "你没有继续施压，她更容易保持正常交流。";
+    } else if (analysis.score < 45 || analysis.questionCount >= 3) {
+      pool = levelReplies?.negative || dialogue.cold;
+      key = "cold";
+      reason = analysis.questionCount >= 3 ? "连续问题让她不知道先回答哪一个。" : "这句话与前文连接较弱或信息量不足，她难以自然展开。";
+    } else if (levelReplies) {
+      if (analysis.score >= 78) {
+        pool = levelReplies.positive || dialogue.warm;
+        key = `level-${currentSession.level.id}-positive`;
+        reason = "你的表达符合本关目标，她会按当前具体场景继续回应。";
+      } else if (analysis.score >= 58) {
+        pool = levelReplies.neutral || dialogue.neutral;
+        key = `level-${currentSession.level.id}-neutral`;
+        reason = "这句话基本可用，但暂时还没有明显提高她的投入。";
+      } else {
+        pool = levelReplies.negative || dialogue.cold;
+        key = `level-${currentSession.level.id}-negative`;
+        reason = "这句话触发了本关要纠正的问题，她会缩短回复或提醒你调整。";
+      }
+    } else if (topic && dialogue.topicAnswers[topic] && (analysis.questionCount > 0 || flags.empathy || flags.share)) {
+      pool = [...dialogue.topicAnswers[topic]];
+      key = `topic-${topic}`;
+      reason = `她记得你们正在聊“${TOPIC_LABELS[topic] || topic}”，所以会沿着这个话题回答。`;
+      if (engaged && analysis.score >= followupScore && dialogue.followUps[topic]) {
