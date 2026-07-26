@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heart-training-loader-v212';
+const CACHE_NAME = 'heart-training-loader-v213';
 const FALLBACK_PAGE = './index.html';
 const CORE_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
@@ -29,9 +29,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request, { cache: 'no-store' })
       .then(response => {
-        if (response.ok) {
-          caches.open(CACHE_NAME).then(cache => cache.put(canonical, response.clone()));
-        }
+        if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(canonical, response.clone()));
         return response;
       })
       .catch(async () => {
