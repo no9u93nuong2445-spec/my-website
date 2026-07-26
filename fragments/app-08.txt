@@ -1,0 +1,260 @@
+    const delta = recent - previous;
+    return { direction: delta >= 4 ? "明显上升" : delta <= -4 ? "近期回落" : "基本稳定", delta, recent, previous };
+  }
+
+  function getStageDiagnosis(targetState = state) {
+    const profile = calculateAbilityProfile(targetState);
+    const values = Object.values(profile).sort((a, b) => a.score - b.score);
+    const weakest = values[0];
+    const strongest = values[values.length - 1];
+    const overall = getOverallAbility(profile);
+    const messages = Number(targetState.stats.totalMessages) || 0;
+    const stage = messages < 10 ? "样本建立期" : overall < 52 ? "基础重建期" : overall < 66 ? "稳定练习期" : overall < 79 ? "能力成形期" : "综合挑战期";
+    const confidence = messages < 10 ? "低" : messages < 35 ? "中" : "较高";
+    const summary = messages < 10
+      ? "训练样本还少，先完成几局不同场景，系统才能更准确地区分偶发失误和稳定习惯。"
+      : `目前最需要优先补强“${weakest.label}”，相对稳定的是“${strongest.label}”。不要同时改十个问题，先把一个高频错误练到连续几局不再出现。`;
+    return { profile, overall, weakest, strongest, stage, confidence, summary, trend: getTrainingTrend(targetState) };
+  }
+
+  function getIssueMastery(issueKey, targetState = state) {
+    const total = Number(targetState.stats.issues?.[issueKey] || 0);
+    const passes = Number(targetState.game.mistakeMastery?.[issueKey] || 0);
+    const history = targetState.game.trainingHistory || [];
+    const recent = history.slice(-8);
+    const cleanRecent = recent.filter(item => !(item.issues?.[issueKey] > 0)).length;
+    const recentHits = recent.reduce((sum, item) => sum + Number(item.issues?.[issueKey] || 0), 0);
+    let score = clamp(Math.round(30 + passes * 18 + cleanRecent * 4 - Math.min(34, total * 2) - recentHits * 5), 0, 100);
+    if (!total && !passes) score = 0;
+    const status = score >= 80 ? "已掌握" : score >= 60 ? "基本稳定" : score >= 35 ? "改善中" : "需要优先练";
+    return { issueKey, total, passes, cleanRecent, recentHits, score, status };
+  }
+
+  function getMasteryList(targetState = state) {
+    return Object.keys(ISSUE_LEVEL_MAP)
+      .map(key => getIssueMastery(key, targetState))
+      .filter(item => item.total > 0 || item.passes > 0)
+      .sort((a, b) => a.score - b.score || b.total - a.total);
+  }
+
+  function buildTrainingPlan(targetState = state, limit = 5) {
+    targetState.game ||= defaultState().game;
+    targetState.game.personalization ||= { lastDiagnosisAt: null, lastPlanSignature: null };
+    const diagnosis = getStageDiagnosis(targetState);
+    const plan = [];
+    const usedLevels = new Set();
+    const usedIssues = new Set();
+
+    getMistakeRecommendations(8, targetState).forEach(item => {
+      if (plan.length >= 3 || usedIssues.has(item.key)) return;
+      usedIssues.add(item.key);
+      usedLevels.add(item.levelId);
+      plan.push({
+        type: "mistake", issueKey: item.key, levelId: item.levelId,
+        title: `${ISSUE_LABELS[item.key] || item.key}专项`,
+        reason: ISSUE_COACHING[item.key] || "通过专项练习减少这个高频问题。",
+        status: getIssueMastery(item.key, targetState).status
+      });
+    });
+
+    Object.values(diagnosis.profile).sort((a, b) => a.score - b.score).forEach(dimension => {
+      if (plan.length >= limit) return;
+      const candidate = dimension.levels.find(id => id <= targetState.unlocked && !usedLevels.has(id))
+        || dimension.levels.find(id => id <= targetState.unlocked)
+        || 1;
+      usedLevels.add(candidate);
+      const level = LEVELS.find(item => item.id === candidate);
+      plan.push({
+        type: "level", levelId: candidate, dimension: dimension.key,
+        title: `${dimension.label}训练`,
+        reason: `${dimension.desc} 当前能力 ${dimension.score} 分，推荐重练“${level?.no || ""} ${level?.title || "基础关卡"}”。`,
+        status: dimension.score >= 75 ? "巩固" : dimension.score >= 60 ? "提升" : "优先"
+      });
+    });
+
+    const signature = plan.map(item => `${item.type}:${item.issueKey || item.dimension}:${item.levelId}`).join("|");
+    targetState.game.personalization.lastDiagnosisAt = new Date().toISOString();
+    targetState.game.personalization.lastPlanSignature = signature;
+    return plan.slice(0, limit);
+  }
+
+  function countSessionStrengths(analyses) {
+    const result = {};
+    analyses.forEach(analysis => {
+      const keys = [];
+      if (analysis.flags?.empathy) keys.push("empathy");
+      if (analysis.flags?.share) keys.push("share");
+      if (analysis.relevant) keys.push("relevant");
+      if (analysis.flags?.humor && !analysis.flags?.insult) keys.push("humor");
+      if (analysis.flags?.ending) keys.push("ending");
+      if (analysis.openQuestion) keys.push("openQuestion");
+      if (analysis.balanced) keys.push("balanced");
+      if (analysis.flags?.respectRejection || analysis.flags?.acceptUncertainty) keys.push("respect");
+      if (analysis.flags?.interestSignal && analysis.score >= 70) keys.push("interestSignal");
+      if (analysis.flags?.specificCompliment && analysis.score >= 70) keys.push("specificCompliment");
+      if (analysis.flags?.invite && analysis.flags?.concreteTime && analysis.flags?.concreteActivity && analysis.flags?.acceptUncertainty) keys.push("concreteInvite");
+      keys.forEach(key => { result[key] = (result[key] || 0) + 1; });
+    });
+    return result;
+  }
+
+  function recordTrainingHistory(completedSession, result, stars, sessionIssues) {
+    const type = completedSession.isMistake ? "mistake" : completedSession.isFree ? "free" : "formal";
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      date: new Date().toISOString(),
+      type,
+      levelId: completedSession.baseLevelId || completedSession.level.id,
+      title: completedSession.level.title,
+      issueKey: completedSession.focusIssue || null,
+      character: completedSession.char.id,
+      avg: result.avg,
+      passed: Boolean(result.passed),
+      stars,
+      messages: completedSession.analyses.length,
+      issues: sessionIssues,
+      strengths: countSessionStrengths(completedSession.analyses),
+      usedHint: Boolean(completedSession.usedHint),
+      usedReference: Boolean(completedSession.usedReference),
+      freeConfig: completedSession.isFree ? { ...completedSession.freeConfig } : null,
+      freeConfigSummary: completedSession.isFree ? describeFreeConfig(completedSession.freeConfig) : null,
+      freeGoalMet: completedSession.isFree ? Boolean(result.goalMet) : null,
+      finalMetrics: completedSession.isFree ? { ...completedSession.metrics } : null,
+      topics: completedSession.isFree ? Object.entries(completedSession.memory.topicCounts || {}).sort((a,b) => b[1]-a[1]).slice(0,3).map(([key,count]) => ({ key, count })) : []
+    };
+    state.game.trainingHistory = [...(state.game.trainingHistory || []), entry].slice(-120);
+    return entry;
+  }
+
+  function buildAbilityRadar(profile) {
+    const entries = Object.values(profile);
+    const cx = 150, cy = 142, radius = 94;
+    const pointAt = (index, scale) => {
+      const angle = -Math.PI / 2 + index * Math.PI * 2 / entries.length;
+      return [cx + Math.cos(angle) * radius * scale, cy + Math.sin(angle) * radius * scale];
+    };
+    const polygon = scale => entries.map((_, index) => pointAt(index, scale).map(value => value.toFixed(1)).join(",")).join(" ");
+    const axes = entries.map((_, index) => {
+      const [x, y] = pointAt(index, 1);
+      return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" />`;
+    }).join("");
+    const dataPoints = entries.map((entry, index) => pointAt(index, entry.score / 100).map(value => value.toFixed(1)).join(",")).join(" ");
+    const labels = entries.map((entry, index) => {
+      const [x, y] = pointAt(index, 1.22);
+      const anchor = x < cx - 8 ? "end" : x > cx + 8 ? "start" : "middle";
+      return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anchor}">${escapeHtml(entry.short)} ${entry.score}</text>`;
+    }).join("");
+    return `<svg class="ability-radar" viewBox="0 0 300 285" role="img" aria-label="六项聊天能力雷达图">
+      <g class="radar-grid"><polygon points="${polygon(.25)}"/><polygon points="${polygon(.5)}"/><polygon points="${polygon(.75)}"/><polygon points="${polygon(1)}"/>${axes}</g>
+      <polygon class="radar-data" points="${dataPoints}" />
+      <g class="radar-labels">${labels}</g>
+    </svg>`;
+  }
+
+
+  function ensureLearningState(targetState = state) {
+    targetState.game ||= defaultState().game;
+    targetState.game.learning ||= { completed: {}, attempts: {}, lastCourseId: null, totalCorrect: 0 };
+    targetState.game.learning.completed ||= {};
+    targetState.game.learning.attempts ||= {};
+    targetState.game.learning.totalCorrect = Math.max(0, Number(targetState.game.learning.totalCorrect) || 0);
+    return targetState.game.learning;
+  }
+
+  function getCourseById(courseId) {
+    return COURSES.find(item => item.id === Number(courseId)) || null;
+  }
+
+  function getCourseProgress(targetState = state) {
+    const learning = ensureLearningState(targetState);
+    const completed = COURSES.filter(course => Boolean(learning.completed[course.id])).length;
+    return { completed, total: COURSES.length, percent: Math.round(completed / Math.max(1, COURSES.length) * 100) };
+  }
+
+  function getRecommendedCourse(targetState = state) {
+    const learning = ensureLearningState(targetState);
+    const openCourses = COURSES.filter(course => !learning.completed[course.id]);
+    if (!openCourses.length) return COURSES[0];
+    const topIssues = Object.entries(targetState.stats?.issues || {}).sort((a, b) => b[1] - a[1]).map(([key]) => key);
+    for (const issue of topIssues) {
+      const match = openCourses.find(course => course.issueKeys.includes(issue));
+      if (match) return match;
+    }
+    const lastId = Number(learning.lastCourseId) || 0;
+    return openCourses.find(course => course.id > lastId) || openCourses[0];
+  }
+
+  function submitCourseAnswer(courseId, optionIndex, targetState = state) {
+    const course = getCourseById(courseId);
+    if (!course) return { correct: false, firstCompletion: false, reward: 0, explanation: "课程不存在。" };
+    const learning = ensureLearningState(targetState);
+    const id = course.id;
+    learning.attempts[id] = (learning.attempts[id] || 0) + 1;
+    learning.lastCourseId = id;
+    const correct = Number(optionIndex) === course.quiz.answer;
+    let firstCompletion = false;
+    let reward = 0;
+    if (correct) {
+      learning.totalCorrect += 1;
+      if (!learning.completed[id]) {
+        firstCompletion = true;
+        reward = course.reward;
+        learning.completed[id] = { completedAt: new Date().toISOString(), attempts: learning.attempts[id] };
+        targetState.game.xp = Math.max(0, Number(targetState.game.xp) || 0) + reward;
+      }
+    }
+    if (targetState === state) saveState();
+    return { correct, firstCompletion, reward, explanation: course.quiz.explanation, correctIndex: course.quiz.answer };
+  }
+
+  function openCourse(courseId) {
+    const course = getCourseById(courseId);
+    if (!course) return;
+    activeCourseId = course.id;
+    activeCourseFeedback = null;
+    ensureLearningState().lastCourseId = course.id;
+    saveState();
+    renderCourseDetail(course.id);
+  }
+
+  function renderCourses() {
+    const progress = getCourseProgress();
+    const recommended = getRecommendedCourse();
+    const learning = ensureLearningState();
+    const sectionsHtml = COURSE_SECTIONS.map(section => {
+      const items = COURSES.filter(course => course.section === section.id);
+      const completed = items.filter(course => learning.completed[course.id]).length;
+      const cards = items.map(course => {
+        const done = Boolean(learning.completed[course.id]);
+        const attempts = learning.attempts[course.id] || 0;
+        return `<button class="course-card ${done ? "completed-course" : ""}" data-course-id="${course.id}" type="button">
+          <div class="course-card-top"><span>第${course.id}课 · ${escapeHtml(course.duration)}</span><em>${done ? "已完成" : attempts ? `已答${attempts}次` : "未学习"}</em></div>
+          <h3>${escapeHtml(course.title)}</h3><p>${escapeHtml(course.summary)}</p>
+          <div class="course-link-row"><span>对应实战：第${course.linkedLevel}关</span><strong>${course.reward} XP</strong></div>
+        </button>`;
+      }).join("");
+      return `<section class="course-section"><div class="chapter-head"><div><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.desc)}</p></div><span class="chapter-progress">${completed}/${items.length}课</span></div><div class="course-grid">${cards}</div></section>`;
+    }).join("");
+    mainView.innerHTML = `
+      <section class="card course-hero">
+        <div class="section-title"><div><span class="rank-chip">V2.0 知识课程</span><h2>先理解，再到关卡里练出来</h2><p>每节只讲一个关键动作：错误示范、正确拆解、互动小测和对应实战。</p></div><div class="course-progress-ring"><strong>${progress.completed}/${progress.total}</strong><span>已完成</span></div></div>
+        <div class="bar"><span style="width:${progress.percent}%"></span></div>
+        <button class="primary-btn full-btn course-continue" data-course-id="${recommended.id}" type="button">${progress.completed === progress.total ? "重新复习" : "继续学习"}：第${recommended.id}课 ${escapeHtml(recommended.title)}</button>
+      </section>
+      ${sectionsHtml}`;
+    mainView.querySelectorAll("[data-course-id]").forEach(button => button.addEventListener("click", () => openCourse(Number(button.dataset.courseId))));
+  }
+
+  function renderCourseDetail(courseId) {
+    const course = getCourseById(courseId);
+    if (!course) { activeCourseId = null; return renderCourses(); }
+    const learning = ensureLearningState();
+    const done = Boolean(learning.completed[course.id]);
+    const feedback = activeCourseFeedback?.courseId === course.id ? activeCourseFeedback : null;
+    const answerButtons = course.quiz.options.map((option, index) => {
+      let stateClass = "";
+      if (feedback) {
+        if (index === course.quiz.answer) stateClass = "correct-answer";
+        else if (index === feedback.selectedIndex) stateClass = "wrong-answer";
+      }
+      return `<button class="quiz-option ${stateClass}" data-quiz-index="${index}" type="button" ${feedback?.correct ? "disabled" : ""}><span>${String.fromCharCode(65 + index)}</span>${escapeHtml(option)}</button>`;
