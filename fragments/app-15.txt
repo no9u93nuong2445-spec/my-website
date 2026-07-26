@@ -1,0 +1,294 @@
+        const answer = pickUnique(pool, currentSession, `${key}-answer`);
+        const follow = pickUnique(dialogue.followUps[topic], currentSession, `${key}-follow`);
+        const text = joinResponse(answer, follow, currentSession.char.id);
+        memory.lastReaction = stateLabel;
+        return { text, reason: `${reason} 当前舒适度较好，她还会主动把问题抛回来。`, state: stateLabel, topic };
+      }
+    } else if (analysis.score >= 78) {
+      pool = dialogue.warm;
+      key = "warm";
+      reason = "你的回应自然、相关且有分寸，她愿意给出更有内容的反馈。";
+    } else if (analysis.score >= 58) {
+      pool = dialogue.neutral;
+      key = "neutral";
+      reason = "这句话可以继续，但暂时还不足以让她明显增加投入。";
+    } else {
+      pool = currentSession.level.replies?.negative || dialogue.cold;
+      key = "negative";
+      reason = "表达存在明显问题，她的回复会变短或提醒你调整节奏。";
+    }
+
+    let text = pickUnique(pool, currentSession, key);
+    if (!text) text = pickUnique(currentSession.level.replies?.neutral || dialogue.neutral, currentSession, "level-neutral");
+
+    if (engaged && analysis.score >= clamp(followupScore + 8, 68, 92) && topic && dialogue.followUps[topic] && !/[？?]$/.test(text) && !flags.ending) {
+      const follow = pickUnique(dialogue.followUps[topic], currentSession, `${key}-extra`);
+      text = joinResponse(text, follow, currentSession.char.id);
+      reason += " 她的投入度上升，因此会主动延续一次。";
+    }
+
+    memory.lastReaction = stateLabel;
+    return { text, reason, state: stateLabel, topic };
+  }
+
+  function joinResponse(first, second, characterId) {
+    if (!second || first.includes(second)) return first;
+    if (characterId === "suyan") return `${first}${/[。！？?]$/.test(first) ? "" : "。"}${second}`;
+    if (characterId === "zhouning") return `${first}${/[。！？?]$/.test(first) ? "" : "。"}${second}`;
+    return `${first}${/[。！？?]$/.test(first) ? "" : "。"}${second}`;
+  }
+
+  function pickUnique(items, currentSession, key = "default") {
+    if (!Array.isArray(items) || !items.length) return "";
+    const memory = currentSession.memory || (currentSession.memory = { usedReplies: [], replyKeys: {} });
+    memory.usedReplies ||= [];
+    memory.replyKeys ||= {};
+    const start = memory.replyKeys[key] || 0;
+    let selected = items[start % items.length];
+    for (let offset = 0; offset < items.length; offset += 1) {
+      const candidate = items[(start + offset) % items.length];
+      if (!memory.usedReplies.slice(-8).includes(candidate)) {
+        selected = candidate;
+        memory.replyKeys[key] = start + offset + 1;
+        break;
+      }
+    }
+    memory.usedReplies.push(selected);
+    if (memory.usedReplies.length > 16) memory.usedReplies.shift();
+    return selected;
+  }
+
+  function getVisibleCharacterState(currentSession) {
+    const { comfort, interest, pressure } = currentSession.metrics;
+    if (pressure >= 75) return "明显有压力";
+    if (pressure >= 50) return "开始防备";
+    if (currentSession.char.relationshipMode === "friend" && comfort >= 58) return "愿意友好交流（非恋爱信号）";
+    if (comfort >= 72 && interest >= 65) return "愿意主动展开";
+    if (comfort >= 56 && interest >= 44) return "逐渐放松";
+    if (comfort < 35) return "保持距离";
+    return "正常观察";
+  }
+
+  function chooseActiveTopic(analysis, currentSession) {
+    const direct = analysis.context?.topicMatch?.[0];
+    if (direct) return direct;
+    const fromText = detectTopicsFromText(analysis.text);
+    if (fromText.length) return fromText[0];
+    return currentSession.memory?.recentTopics?.[0] || null;
+  }
+
+  function detectTopicsFromText(text) {
+    const groups = getTopicGroups();
+    return Object.entries(groups)
+      .filter(([, words]) => words.some(word => String(text).includes(word)))
+      .map(([key]) => key);
+  }
+
+  function getTopicGroups() {
+    return {
+      work: ["工作", "上班", "项目", "加班", "开会", "同事", "客户", "忙", "任务"],
+      food: ["吃", "饭", "咖啡", "甜品", "火锅", "奶茶", "拿铁", "探店", "餐厅", "零食"],
+      pets: ["猫", "狗", "宠物", "小猫", "小狗", "团子"],
+      sleep: ["睡", "早起", "起床", "困", "休息", "闹钟", "熬夜"],
+      travel: ["旅游", "旅行", "云南", "海边", "景点", "出门", "城市"],
+      art: ["画", "插画", "设计", "照片", "光线", "配色", "构图", "作品"],
+      mood: ["累", "烦", "难受", "开心", "心情", "压力", "委屈", "崩溃"],
+      weekend: ["周末", "周六", "周日", "假期", "放假"],
+      exercise: ["运动", "健身", "跑步", "爬山", "散步"],
+      media: ["电影", "剧", "音乐", "歌", "综艺", "小说", "游戏", "播客", "梗"],
+      reply: ["回复", "消息", "聊天", "手机", "失踪", "秒回"],
+      meetup: ["见面", "一起", "约", "时间", "有空", "咖啡店", "看展"],
+      study: ["学习", "考试", "课程", "看书", "学校"]
+    };
+  }
+
+  function updateConversationMemory(analysis, currentSession) {
+    const memory = currentSession.memory || (currentSession.memory = { recentTopics: [], userFacts: [], usedReplies: [], replyKeys: {} });
+    const topics = [...(analysis.context?.topicMatch || []), ...detectTopicsFromText(analysis.text)];
+    memory.topicCounts ||= {};
+    memory.topicHistory ||= [];
+    topics.forEach(topic => {
+      memory.recentTopics = [topic, ...(memory.recentTopics || []).filter(item => item !== topic)].slice(0, 4);
+      memory.topicCounts[topic] = (memory.topicCounts[topic] || 0) + 1;
+      memory.topicHistory.push(topic);
+    });
+    memory.topicHistory = memory.topicHistory.slice(-20);
+
+    const facts = extractUserFacts(analysis.text);
+    facts.forEach(fact => {
+      if (!(memory.userFacts || []).includes(fact)) memory.userFacts.push(fact);
+    });
+    memory.userFacts = (memory.userFacts || []).slice(-5);
+
+    if (analysis.score >= 75) {
+      memory.positiveStreak = (memory.positiveStreak || 0) + 1;
+      memory.negativeStreak = 0;
+    } else if (analysis.score < 55) {
+      memory.negativeStreak = (memory.negativeStreak || 0) + 1;
+      memory.positiveStreak = 0;
+    } else {
+      memory.positiveStreak = 0;
+      memory.negativeStreak = 0;
+    }
+  }
+
+  function extractUserFacts(text) {
+    const clauses = String(text).split(/[。！？!?；;]/).map(item => item.trim()).filter(Boolean);
+    return clauses
+      .filter(item => /(^|，)我(也|平时|最近|今天|之前|以前|喜欢|不喜欢|会|不会|一般|通常|准备|打算|属于|觉得|感觉)/.test(item))
+      .map(item => item.replace(/^.*?(我(?:也|平时|最近|今天|之前|以前|喜欢|不喜欢|会|不会|一般|通常|准备|打算|属于|觉得|感觉))/, "$1"))
+      .map(item => item.slice(0, 32))
+      .filter(item => item.length >= 4)
+      .slice(0, 2);
+  }
+
+  function rememberHerResponse(text, currentSession) {
+    const memory = currentSession.memory;
+    memory.topicCounts ||= {};
+    memory.topicHistory ||= [];
+    detectTopicsFromText(text).forEach(topic => {
+      memory.recentTopics = [topic, ...memory.recentTopics.filter(item => item !== topic)].slice(0, 4);
+      memory.topicCounts[topic] = (memory.topicCounts[topic] || 0) + 1;
+      memory.topicHistory.push(topic);
+    });
+    memory.topicHistory = memory.topicHistory.slice(-20);
+  }
+
+  function evaluateSession(currentSession, forceFinish = false) {
+    const { level, turn, metrics, analyses, counters } = currentSession;
+    const avg = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.score, 0) / analyses.length) : 0;
+    const severeFailures = analyses.filter(item => item.flags.insult || item.flags.sexual).length;
+
+    if (metrics.pressure >= 90 || severeFailures > 0) {
+      return { finished: true, passed: false, avg, reason: "对方压力过高或出现明显越界表达。", goalMet: false };
+    }
+
+    if (currentSession.isFree) {
+      const status = getFreeGoalStatus(currentSession);
+      const target = level.targetAvg + (state.settings.strictMode ? 5 : 0);
+      const enoughRounds = turn >= Math.min(level.minTurns, currentSession.freeConfig?.goal === "naturalClose" ? 3 : level.minTurns);
+      const passed = status.met && avg >= target && enoughRounds;
+      if (forceFinish) {
+        return { finished: true, passed, avg, goalMet: status.met, reason: passed ? `已完成“${FREE_PRACTICE_OPTIONS.goals[status.goal].label}”目标。` : status.met ? `目标动作已完成，但平均分尚未达到${target}分。` : `本次尚未完成“${FREE_PRACTICE_OPTIONS.goals[status.goal].label}”的关键条件。` };
+      }
+      if (passed) return { finished: true, passed: true, avg, goalMet: true, reason: `已完成“${FREE_PRACTICE_OPTIONS.goals[status.goal].label}”目标。` };
+      if (turn >= level.maxTurns) return { finished: true, passed: false, avg, goalMet: status.met, reason: status.met ? `目标动作已完成，但平均分尚未达到${target}分。` : "达到最大轮次，但本次训练目标还没有完成。" };
+      return { finished: false, passed: false, avg, goalMet: status.met, reason: "" };
+    }
+
+    if (currentSession.isMistake) {
+      const focusedCount = analyses.reduce((sum, item) => sum + item.issues.filter(issue => issue.key === currentSession.focusIssue).length, 0);
+      if (turn >= level.minTurns && focusedCount === 0 && avg >= 65) {
+        return { finished: true, passed: true, avg, reason: `整局没有再次触发“${ISSUE_LABELS[currentSession.focusIssue] || currentSession.focusIssue}”。` };
+      }
+      if (turn >= level.maxTurns) {
+        return { finished: true, passed: focusedCount === 0 && avg >= 65, avg, reason: focusedCount ? "专项问题仍然出现，需要再练一次。" : "平均分还没有达到专项要求。" };
+      }
+      return { finished: false, passed: false, avg, reason: "" };
+    }
+
+    const requiredMet = Object.entries(level.required || {}).every(([key, value]) => (counters[key] || 0) >= value);
+    const adjustedTarget = level.targetAvg + (state.settings.strictMode ? 5 : 0);
+
+    if (turn >= level.minTurns && requiredMet && avg >= adjustedTarget) {
+      return { finished: true, passed: true, avg, reason: "达到本关目标。" };
+    }
+
+    if (turn >= level.maxTurns) {
+      return { finished: true, passed: requiredMet && avg >= adjustedTarget, avg, reason: requiredMet ? "已达到最大轮次。" : "关键训练目标还没有完成。" };
+    }
+
+    return { finished: false, passed: false, avg, reason: "" };
+  }
+
+  function updateGlobalStats(analysis, currentSession = session) {
+    trackActivityDay();
+    state.stats.totalMessages += 1;
+    state.stats.scoreSum += analysis.score;
+    state.stats.lastPlayed = new Date().toISOString();
+    updateDailyProgress("messages", 1);
+    if (analysis.score >= 80) updateDailyProgress("highScore", 1);
+
+    const messageXp = 2 + Math.floor(analysis.score / 20);
+    addXp(messageXp);
+    if (currentSession) currentSession.sessionXp += messageXp;
+
+    analysis.issues.forEach(issue => {
+      state.stats.issues[issue.key] = (state.stats.issues[issue.key] || 0) + 1;
+    });
+
+    const strengthKeys = [];
+    if (analysis.flags.empathy) strengthKeys.push("empathy");
+    if (analysis.flags.share) strengthKeys.push("share");
+    if (analysis.relevant) strengthKeys.push("relevant");
+    if (analysis.flags.humor && !analysis.flags.insult) strengthKeys.push("humor");
+    if (analysis.flags.ending) strengthKeys.push("ending");
+    if (analysis.openQuestion) strengthKeys.push("openQuestion");
+    if (analysis.balanced) strengthKeys.push("balanced");
+    if (analysis.flags.respectRejection || analysis.flags.acceptUncertainty) strengthKeys.push("respect");
+    if (analysis.flags.interestSignal && analysis.score >= 70) strengthKeys.push("interestSignal");
+    if (analysis.flags.specificCompliment && analysis.score >= 70) strengthKeys.push("specificCompliment");
+    if (analysis.flags.apology && analysis.score >= 70) strengthKeys.push("apology");
+    if (analysis.flags.selfBoundary && analysis.score >= 70) strengthKeys.push("selfBoundary");
+    if (analysis.flags.respectfulDifference && analysis.score >= 70) strengthKeys.push("respectfulDifference");
+    if (analysis.flags.invite && analysis.flags.concreteTime && analysis.flags.concreteActivity && analysis.flags.acceptUncertainty) strengthKeys.push("concreteInvite");
+
+    strengthKeys.forEach(key => {
+      state.stats.strengths[key] = (state.stats.strengths[key] || 0) + 1;
+    });
+    const unlocked = checkAchievements();
+    if (currentSession) currentSession.newAchievements.push(...unlocked);
+  }
+
+  function finalizeSession(result) {
+    const completedSession = session;
+    const scores = completedSession.analyses.map(item => item.score);
+    const minScore = scores.length ? Math.min(...scores) : 0;
+    const bestScore = scores.length ? Math.max(...scores) : 0;
+    const stars = result.passed ? (result.avg >= 86 ? 3 : result.avg >= 75 ? 2 : 1) : 0;
+    const sessionIssues = countSessionIssues(completedSession.analyses);
+    const wasFirstPass = !completedSession.isFree && !completedSession.isMistake && !state.levels[completedSession.level.id]?.completed;
+
+    state.stats.totalSessions += 1;
+    updateDailyProgress("session", 1);
+    let completionXp = 5;
+    if (result.passed) completionXp += 12 + stars * 6;
+    if (wasFirstPass && result.passed) completionXp += 18;
+    addXp(completionXp);
+    completedSession.sessionXp += completionXp;
+
+    let chapterUpdates = [];
+    if (completedSession.isMistake) {
+      if (result.passed) {
+        state.game.mistakeMastery[completedSession.focusIssue] = (state.game.mistakeMastery[completedSession.focusIssue] || 0) + 1;
+        addXp(18);
+        completedSession.sessionXp += 18;
+      }
+    } else if (!completedSession.isFree && result.passed) {
+      const id = completedSession.level.id;
+      const old = state.levels[id] || {};
+      state.levels[id] = {
+        completed: true,
+        stars: Math.max(old.stars || 0, stars),
+        bestScore: Math.max(old.bestScore || 0, result.avg),
+        attempts: (old.attempts || 0) + 1,
+        lastPlayed: new Date().toISOString()
+      };
+      state.unlocked = Math.max(state.unlocked, Math.min(TOTAL_LEVELS, id + 1));
+      if (!completedSession.usedHint && !completedSession.usedReference) updateDailyProgress("cleanPass", 1);
+      chapterUpdates = updateChapterAwards();
+      chapterUpdates.forEach(item => { completedSession.sessionXp += item.reward; });
+    } else if (!completedSession.isFree) {
+      const id = completedSession.level.id;
+      const old = state.levels[id] || {};
+      state.levels[id] = {
+        ...old,
+        completed: old.completed || false,
+        attempts: (old.attempts || 0) + 1,
+        lastPlayed: new Date().toISOString()
+      };
+    }
+
+    const historyEntry = recordTrainingHistory(completedSession, result, stars, sessionIssues);
+    if (completedSession.isFree) {
+      state.game.freePractice.totalSessions = (state.game.freePractice.totalSessions || 0) + 1;
