@@ -1,0 +1,325 @@
+        negative: ["你怎么又只问我，不说你自己。", "一直‘然后呢’有点像做采访。"],
+        boundary: ["我不想一直单方面讲。"]
+      }
+    },
+    {
+      id: 22, chapter: 5, no: "5-2", title: "表达具体欣赏", character: "suyan",
+      intro: "她发来一张刚完成的插画，画面是雨夜公交站。",
+      objective: "夸具体细节，并围绕作品继续交流；不能只说‘美女好厉害’。",
+      opening: "这张是我刚画完的，还在考虑要不要调整颜色。",
+      minTurns: 4, maxTurns: 7, targetAvg: 74,
+      required: { specificCompliment: 1, relevant: 2 },
+      hints: ["欣赏她做的事情，比连续夸外貌更能形成真实交流。", "说出你具体看到的光线、颜色或氛围。"],
+      references: ["公交站那块暖光和外面的冷色对比挺有故事感，像有人在等一件还没发生的事。你现在犹豫的是整体颜色，还是灯光那一块？"],
+      replies: {
+        positive: ["我主要在犹豫灯光要不要再暖一点。", "你注意到冷暖对比了，我确实想做出等待的感觉。"],
+        neutral: ["谢谢。", "可能还会改一点。"],
+        negative: ["不用一直叫我美女。", "你是真的在看画，还是只是在夸我？"],
+        boundary: ["我不太接受刚认识就用很亲密的称呼。"]
+      }
+    },
+    {
+      id: 23, chapter: 5, no: "5-3", title: "先陪伴，不抢着解决", character: "zhouning",
+      intro: "她说项目被临时推翻，只想吐槽一下。你过去容易马上给方案。",
+      objective: "先回应情绪，再询问她想倾诉还是想讨论办法；不能直接说教。",
+      opening: "忙了一周的方案今天被全部推翻，我现在只想吐槽两句。",
+      minTurns: 4, maxTurns: 7, targetAvg: 74,
+      required: { empathy: 2, noAdviceRush: 1, relevant: 2 },
+      hints: ["解决问题能力不等于任何时候都要提供答案。", "先确认她此刻需要的是陪伴还是方案。"],
+      references: ["听起来确实很憋屈，前面的投入像一下被清零了。你先吐槽，我听着；等你想理思路时我们再一起拆。"],
+      replies: {
+        positive: ["对，我现在真的不想马上分析原因。", "谢谢，先让我把最离谱的部分说完。"],
+        neutral: ["嗯，挺烦的。", "之后再处理。"],
+        negative: ["我现在没让你教我怎么做。", "先别给方案，我只是想说一下。"],
+        boundary: ["如果你只想证明自己会解决问题，那先不用聊了。"]
+      }
+    },
+    {
+      id: 24, chapter: 5, no: "5-4", title: "坦诚表达兴趣", character: "linxia",
+      intro: "你们已经稳定聊了一周，双方都会主动分享。你不想再一直保持模糊。",
+      objective: "用轻松、无压力的方式表达想继续了解她；不能突然表白或要求答复。",
+      opening: "最近跟你聊天还挺轻松的，时间过得蛮快。",
+      minTurns: 4, maxTurns: 7, targetAvg: 74,
+      required: { interestSignal: 1, noPressure: 1, relevant: 1 },
+      hints: ["表达兴趣不是宣布关系，也不是逼她立刻回应。", "说清你自己的感受，再给对方正常节奏。"],
+      references: ["我也觉得最近聊天挺舒服的，我想继续认真了解你，不过不用急着给它下定义，按现在的节奏就好。"],
+      replies: {
+        positive: ["我也不排斥继续了解。", "这样说还挺自然的，慢慢来吧。"],
+        neutral: ["先正常聊着吧。", "不用急。"],
+        negative: ["我们才聊没多久，不用一下说得这么重。", "你这样让我有点需要马上表态的压力。"],
+        boundary: ["我目前没有想推进关系。"]
+      }
+    },
+    {
+      id: 25, chapter: 5, no: "5-5", title: "不靠付出来换关系", character: "suyan",
+      intro: "她提到最近很忙。你过去容易说‘什么都可以帮你做’，希望因此得到好感。",
+      objective: "表达适度关心和可选择的帮助，同时保留自己的边界。",
+      opening: "最近稿子很多，生活里的事也有点堆在一起。",
+      minTurns: 4, maxTurns: 7, targetAvg: 72,
+      required: { empathy: 1, acceptUncertainty: 1, share: 1 },
+      hints: ["帮助应该是可承受、可拒绝的，不是用付出购买回应。", "不要承诺随叫随到，也不要暗示她欠你。"],
+      references: ["听起来最近事情确实挤在一起了。我忙的时候也会先把最急的两件列出来。你想吐槽我就听着；真有我顺手能帮的小事，也可以直接说，不方便也没关系。"],
+      replies: {
+        positive: ["谢谢，我真需要时会说。", "这样就好，我现在主要是有点累。"],
+        neutral: ["嗯，谢谢。", "我自己先处理。"],
+        negative: ["不用说什么都替我做，我们还没熟到这个程度。", "我不希望帮助变成以后要求回报的理由。"],
+        boundary: ["我不接受用付出来换关系。"]
+      }
+    },
+    {
+      id: 26, chapter: 6, no: "6-1", title: "判断邀约时机", character: "zhouning",
+      intro: "你们聊过几次，她回复认真但工作忙。今天她主动提到周末想放松。",
+      objective: "接住她主动透露的空闲信号，提出一次轻量、具体、有退路的邀约。",
+      opening: "这个周末终于没安排，我想找个地方走走。",
+      minTurns: 4, maxTurns: 7, targetAvg: 76,
+      required: { invite: 1, concreteInvite: 1, acceptUncertainty: 1 },
+      hints: ["她主动提到空闲，是比突然硬约更自然的窗口。", "活动要符合她偏轻量、提前安排的习惯。"],
+      references: ["正好我周六下午准备去河边走走，再找家咖啡店坐一会。你要是也想放松可以一起；临时想休息也没关系。"],
+      replies: {
+        positive: ["这个安排可以，我看下周六下午。", "可以，时间不长的话比较合适。"],
+        neutral: ["我确认一下。", "先看状态。"],
+        negative: ["活动和时间都没说清楚，我没法判断。", "不用连续问我到底去不去。"],
+        boundary: ["我这次想自己休息。"]
+      }
+    },
+    {
+      id: 27, chapter: 6, no: "6-2", title: "她提出替代时间", character: "linxia",
+      intro: "你约她周六探店，她说周六有事，但主动问周日下午行不行。",
+      objective: "识别积极信号，清楚确认时间和活动；不要故作冷淡或试探。",
+      opening: "周六我已经约了朋友，周日下午可以吗？",
+      minTurns: 3, maxTurns: 6, targetAvg: 75,
+      required: { invite: 1, concreteInvite: 1, relevant: 1 },
+      hints: ["拒绝原时间但给出替代时间，说明她在参与安排。", "直接确认即可，不需要说‘看你表现’。"],
+      references: ["可以，周日下午三点怎么样？我们就去之前说的那家甜品店，吃完附近随便走走。"],
+      replies: {
+        positive: ["可以，三点没问题。", "好呀，那就周日下午。"],
+        neutral: ["我再确认一下具体时间。", "下午应该可以。"],
+        negative: ["为什么要故意装不在意？", "我已经给了时间，不用再试探。"],
+        boundary: ["如果安排一直不清楚，这次就先算了。"]
+      }
+    },
+    {
+      id: 28, chapter: 6, no: "6-3", title: "第一次见面边界", character: "suyan",
+      intro: "她愿意见面，但希望白天、公共场所，并且提前确定结束时间。",
+      objective: "尊重她对地点和时长的要求，提出安全、明确的安排。",
+      opening: "第一次见面我想约在白天和人多一点的地方，时间也别太长。",
+      minTurns: 3, maxTurns: 6, targetAvg: 78,
+      required: { invite: 1, concreteInvite: 1, respect: 2 },
+      hints: ["她提出安全边界不是对你的侮辱。", "不要劝她去私密地点，也不要嘲笑她想太多。"],
+      references: ["没问题。周日下午两点在市中心那家咖啡店见，先坐一个小时；你到时觉得舒服我们再决定要不要附近走走。"],
+      replies: {
+        positive: ["这个安排可以，我会比较安心。", "好，时间和地点都清楚。"],
+        neutral: ["可以。", "我看下路线。"],
+        negative: ["我已经说了不去私密地点。", "不要说我想太多，这是我的边界。"],
+        boundary: ["如果不能接受这些条件，那就不见了。"]
+      }
+    },
+    {
+      id: 29, chapter: 6, no: "6-4", title: "连续模糊拒绝", character: "zhouning",
+      intro: "你已经邀请过两次，她都说忙，没有替代时间，也没有继续相关话题。",
+      objective: "停止继续邀约，正常收尾并把注意力放回自己的生活。",
+      opening: "最近还是比较忙，之后再看吧。",
+      minTurns: 1, maxTurns: 3, targetAvg: 76,
+      required: { ending: 1, acceptUncertainty: 1, noPressure: 1 },
+      hints: ["连续模糊拒绝且没有替代安排，应按没有行动意愿处理。", "不需要逼她明确说‘不喜欢你’，你可以主动结束投入。"],
+      references: ["明白，那这件事先不提了。你忙你的，我也安排自己的时间，之后有合适机会再说。"],
+      replies: {
+        positive: ["好，谢谢理解。", "可以，先各自忙。"],
+        neutral: ["嗯。", "好。"],
+        negative: ["我已经说过最近不方便了。", "不用再问第三次。"],
+        boundary: ["请不要继续邀请。"]
+      }
+    },
+    {
+      id: 30, chapter: 6, no: "6-5", title: "结业关：体面面对现实", character: "suyan",
+      intro: "经过一段时间相处，她明确表示没有恋爱方向的感觉，并希望减少联系。",
+      objective: "接受现实、尊重减少联系的要求，同时维护自己的尊严和边界。",
+      opening: "我觉得我们没有往恋爱方向发展的感觉，之后也想减少一点联系。",
+      minTurns: 1, maxTurns: 3, targetAvg: 82,
+      required: { respectRejection: 1, ending: 1, noPressure: 1 },
+      hints: ["结业关不考你能否翻盘，而考你能否尊重事实。", "不贬低自己、不责怪她、不要求继续享受你的付出。"],
+      references: ["我明白了，谢谢你坦诚说清楚。我尊重你的决定，也会减少联系，把注意力放回自己的生活。祝你之后一切顺利。"],
+      replies: {
+        positive: ["谢谢你理解，也祝你顺利。", "好，谢谢你尊重我的想法。"],
+        neutral: ["谢谢。", "好。"],
+        negative: ["我不想再被说服。", "请不要用过去的付出来要求我改变决定。"],
+        boundary: ["请尊重我减少联系的要求。"]
+      }
+    }
+  );
+
+
+  LEVELS.push(
+    {
+      id: 31, chapter: 7, no: "7-1", title: "接住玩笑，不抢着表演", character: "chenke",
+      intro: "她发来一张自己做饭失败的照片，并说‘今天的锅比我更有想法’。",
+      objective: "顺着她的细节轻松回应，同时分享一点自己；不能连续堆梗或嘲笑她。",
+      opening: "今天的锅比我更有想法，菜已经看不出原来的样子了。",
+      minTurns: 5, maxTurns: 8, targetAvg: 72,
+      required: { humor: 1, relevant: 2, share: 1, respect: 1 },
+      hints: ["笑点来自她说的‘锅有想法’，不用另起一套段子。", "玩笑后补一点自己的相关经历，聊天才不是单口表演。"],
+      references: ["听起来这口锅今天坚持独立创作。我上次煎蛋也差点做成地图，不过味道还能抢救。你这道菜最后敢尝吗？"],
+      replies: {
+        positive: ["哈哈，最后还是尝了，居然没想象中难吃。", "地图煎蛋也太真实了，我至少不是一个人。"],
+        neutral: ["还行吧。", "最后吃了。"],
+        negative: ["你不用一口气发五个梗。", "拿我做饭失败一直嘲笑就不好玩了。"],
+        boundary: ["这种打压式玩笑我不喜欢。"]
+      }
+    },
+    {
+      id: 32, chapter: 7, no: "7-2", title: "调侃不是贬低", character: "chenke",
+      intro: "她说自己打游戏很菜，但玩得很开心。",
+      objective: "完成一次友好调侃，同时认可她的体验；不能用‘菜、笨、女生都不会’来压她。",
+      opening: "我打游戏是真的菜，但我每次都玩得很开心。",
+      minTurns: 4, maxTurns: 7, targetAvg: 74,
+      required: { humor: 1, empathy: 1, respect: 2 },
+      hints: ["可以调侃场景，不要把人定义成差。", "她说的重点是‘玩得开心’，先接住这个。"],
+      references: ["打游戏能稳定收获快乐已经赢一半了。我也有那种技术没升级、笑声先拉满的局。你最常玩哪种游戏？"],
+      replies: {
+        positive: ["对，输赢没那么重要，主要是和朋友一起好玩。", "哈哈，笑声先拉满这个很准确。"],
+        neutral: ["就随便玩玩。", "是啊。"],
+        negative: ["说我笨就不算幽默。", "别拿‘女生不会玩’当梗。"],
+        boundary: ["我不接受靠贬低制造亲密感。"]
+      }
+    },
+    {
+      id: 33, chapter: 7, no: "7-3", title: "意见不同也能继续", character: "chenke",
+      intro: "她很喜欢一部你觉得普通的电影。",
+      objective: "清楚表达不同看法，同时保留对她体验的好奇；不能为了迎合假装喜欢。",
+      opening: "我觉得那部电影特别好看，最后一段我还挺感动的。",
+      minTurns: 5, maxTurns: 8, targetAvg: 74,
+      required: { respectfulDifference: 1, relevant: 2, openQuestion: 1 },
+      hints: ["不同意见不是冷场，关键是别把‘我不喜欢’说成‘你品味差’。", "先说自己的真实感受，再问她被哪个部分打动。"],
+      references: ["我对这部电影的感觉比较普通，不过最后那段的情绪确实很集中。我理解你会被打动，你最喜欢的是人物关系，还是那个结局？"],
+      replies: {
+        positive: ["我主要是被人物关系打动。", "没关系啊，电影本来就会有人喜欢有人一般。"],
+        neutral: ["可能每个人感觉不同。", "我就是很喜欢。"],
+        negative: ["你可以不喜欢，但不用说喜欢它的人没品味。", "假装赞同反而没必要。"],
+        boundary: ["如果不同意见就要攻击人，那没法聊。"]
+      }
+    },
+    {
+      id: 34, chapter: 7, no: "7-4", title: "多人活动也要说清楚", character: "chenke",
+      intro: "共同朋友周末组织市集活动，你想邀请她一起参加。",
+      objective: "说明这是多人活动、时间和大致安排，并给她自主选择空间。",
+      opening: "听说周末那个创意市集还挺大的。",
+      minTurns: 4, maxTurns: 7, targetAvg: 75,
+      required: { invite: 1, concreteInvite: 1, acceptUncertainty: 1, relevant: 1 },
+      hints: ["别故意把多人活动说成单独约会，也别隐瞒共同朋友会去。", "清楚说明场景会让人更容易判断是否参加。"],
+      references: ["周六下午我们几个共同朋友准备一起去逛市集，大概三点到。你有兴趣可以一起来；那天有别的安排也没关系。"],
+      replies: {
+        positive: ["多人一起的话可以啊，我看下周六。", "听起来挺轻松，我问下都有谁。"],
+        neutral: ["我确认一下时间。", "到时候看。"],
+        negative: ["你一开始为什么不说还有其他人？", "活动和时间都不清楚，我没法决定。"],
+        boundary: ["如果信息一直不透明，我就不参加。"]
+      }
+    },
+    {
+      id: 35, chapter: 7, no: "7-5", title: "会接梗不等于喜欢你", character: "chenke",
+      intro: "她经常接你的玩笑，也会发表情，但从未主动推进关系。",
+      objective: "保持轻松交流，不把互动自动解释成恋爱信号，也不突然逼问她是否喜欢你。",
+      opening: "哈哈，你这个梗我记住了，下次可以拿来笑你。",
+      minTurns: 4, maxTurns: 7, targetAvg: 76,
+      required: { noPressure: 2, relevant: 2, acceptUncertainty: 1 },
+      hints: ["接梗说明这一刻聊得来，不等于关系已经确定。", "继续观察持续投入和行动，不靠猜心推进。"],
+      references: ["可以，这个梗先登记在你的素材库里。我也挺喜欢这种轻松来回，先按现在的节奏聊，别急着给它加剧情。"],
+      replies: {
+        positive: ["对啊，正常聊得开心就好。", "哈哈，加剧情这个说法不错，先别脑补。"],
+        neutral: ["嗯，先聊着。", "就是开玩笑。"],
+        negative: ["我接梗不代表我在暗示喜欢你。", "不用突然问我是不是爱上你了。"],
+        boundary: ["如果每次友好都被解读成暧昧，我会减少互动。"]
+      }
+    },
+    {
+      id: 36, chapter: 8, no: "8-1", title: "时间安排要互相尊重", character: "guqing",
+      intro: "她说工作日晚上通常不临时约，周末也希望提前安排。",
+      objective: "回应她的时间习惯，也清楚表达自己的可用时间；不能要求她随叫随到。",
+      opening: "我工作日晚上的安排比较固定，见面最好提前几天说。",
+      minTurns: 5, maxTurns: 8, targetAvg: 75,
+      required: { relevant: 2, share: 2, noPressure: 2 },
+      hints: ["时间边界不是冷淡，而是生活安排。", "说清自己的可用时段，比‘你什么时候都行’更成熟。"],
+      references: ["明白，提前安排对双方都轻松。我工作日周三晚上相对稳定，周末一般也能提前两三天确认。你通常希望提前几天确定？"],
+      replies: {
+        positive: ["这样就很好，双方都知道怎么安排。", "清楚说明可用时间会减少很多误会。"],
+        neutral: ["可以。", "提前说就行。"],
+        negative: ["我不会为了证明在意就随时改计划。", "不要用临时召唤测试我。"],
+        boundary: ["如果一直不尊重时间安排，我们就不约了。"]
+      }
+    },
+    {
+      id: 37, chapter: 8, no: "8-2", title: "需求不同，直接说清楚", character: "guqing",
+      intro: "她喜欢提前计划，你更喜欢临时决定。",
+      objective: "承认差异，提出可执行的折中方式；不能假装完全一样或要求她单方面适应。",
+      opening: "我比较习惯提前计划，临时变化太多会影响我的安排。",
+      minTurns: 5, maxTurns: 8, targetAvg: 76,
+      required: { respectfulDifference: 1, share: 1, relevant: 2, noPressure: 1 },
+      hints: ["关系兼容不是所有偏好相同，而是差异能否协商。", "给出具体折中，例如重要见面提前定、普通聊天保持弹性。"],
+      references: ["我和你不太一样，我有时更喜欢临时决定，但我理解这会打乱你的节奏。重要安排我们提前两三天定，临时的小事我先问你是否方便，你觉得这样可行吗？"],
+      replies: {
+        positive: ["这个折中方式可执行，我能接受。", "你没有要求我完全按你的习惯来，这点很好。"],
+        neutral: ["可以先试试。", "具体事情具体看。"],
+        negative: ["嘴上说理解，之后还是每次临时约就没意义。", "不用假装我们习惯完全一样。"],
+        boundary: ["如果差异不能协商，勉强推进也不合适。"]
+      }
+    },
+    {
+      id: 38, chapter: 8, no: "8-3", title: "道歉不等于长篇自证", character: "guqing",
+      intro: "你昨天临时取消见面，却很晚才通知她。她对此不满。",
+      objective: "承认具体影响、道歉并给出改进方式；不能找一大堆理由或要求她马上原谅。",
+      opening: "昨天你临时取消，而且很晚才告诉我，确实影响了我的安排。",
+      minTurns: 3, maxTurns: 6, targetAvg: 80,
+      required: { apology: 1, empathy: 1, noPressure: 1 },
+      hints: ["有效道歉包含：承认行为、理解影响、说明改进。", "理由可以简短说明，但不能用来抵消责任。"],
+      references: ["你说得对，是我通知得太晚，确实打乱了你的安排，对不起。以后如果可能有变化，我会尽早告诉你；这次你不想马上重新约，我也理解。"],
+      replies: {
+        positive: ["这样说我能接受，重点是之后真的做到。", "谢谢你承认影响，我需要看后续行动。"],
+        neutral: ["知道了。", "之后注意就好。"],
+        negative: ["解释十分钟也不会改变你通知太晚。", "不要把道歉变成让我安慰你。"],
+        boundary: ["如果类似情况反复发生，我不会继续安排见面。"]
+      }
+    },
+    {
+      id: 39, chapter: 8, no: "8-4", title: "改期要给替代方案", character: "guqing",
+      intro: "她因为工作需要取消原定周六见面，但主动表达歉意。",
+      objective: "不阴阳怪气，确认是否需要改期，并提出一个清楚替代方案。",
+      opening: "抱歉，周六临时有工作，我需要取消这次见面。",
+      minTurns: 3, maxTurns: 6, targetAvg: 78,
+      required: { acceptUncertainty: 1, invite: 1, concreteInvite: 1, noPressure: 1 },
+      hints: ["一次合理改期不等于不重视，关键看是否沟通和后续行动。", "先确认她方便再给一个替代时间，不用用冷淡惩罚。"],
+      references: ["明白，工作变化有时躲不开。那这周先取消；你如果还想见，我们可以改到下周三晚上喝咖啡，或者周日下午散步。你确认完日程再选，不急。"],
+      replies: {
+        positive: ["谢谢理解，我周日下午更合适。", "可以，我确认完下周安排告诉你。"],
+        neutral: ["我之后再确认。", "先这样。"],
+        negative: ["不用故意说‘算了以后都别见’来惩罚我。", "你可以失望，但不用阴阳怪气。"],
+        boundary: ["如果一次改期就要情绪报复，那不适合继续安排。"]
+      }
+    },
+    {
+      id: 40, chapter: 8, no: "8-5", title: "照顾别人，也保留自己", character: "guqing",
+      intro: "她最近工作压力大，希望每天长时间和你倾诉，但你也开始疲惫。",
+      objective: "先理解她的压力，再清楚表达自己的时间和能力边界，提出可持续的支持方式。",
+      opening: "我最近真的很累，晚上可能还会想找你聊很久。",
+      minTurns: 4, maxTurns: 7, targetAvg: 80,
+      required: { empathy: 1, selfBoundary: 1, respectfulDifference: 1, noPressure: 1 },
+      hints: ["边界不是冷漠，持续透支只会积累怨气。", "可以说清你能提供什么，而不是承诺全天候在线。"],
+      references: ["我知道你最近压力很大，也愿意听你说。但我和你需要的聊天频率不太一样，我晚上十点后需要休息，没法每天聊很久。我们可以在我有精力时聊一会。"],
+      replies: {
+        positive: ["这样说很清楚，我不会要求你一直在线。", "谢谢你愿意支持，也把自己的能力说清楚。"],
+        neutral: ["我知道了。", "那就有空再聊。"],
+        negative: ["嘴上说什么都能陪，之后又突然消失会更糟。", "不用把自己牺牲到最后再怪我。"],
+        boundary: ["支持需要双方都能承受，不是无限责任。"]
+      }
+    },
+    {
+      id: 41, chapter: 9, no: "9-1", title: "回复热情不等于恋爱兴趣", character: "xuyue",
+      intro: "她回复礼貌，也会分享日常，但已经说过只把你当普通朋友。",
+      objective: "继续把她的话当普通朋友交流，不猜测隐藏暗示，不重新推进关系。",
+      opening: "今天同事带了好多零食，我顺手也给你留了一包，下次朋友聚会时带给你。",
+      minTurns: 4, maxTurns: 7, targetAvg: 78,
+      required: { relevant: 2, noPressure: 2, respect: 2 },
+      hints: ["分享零食和正常关心可以只是友好。", "已经说清关系定位后，不要用单个行为推翻她的明确表达。"],
+      references: ["谢谢你还想着我，朋友聚会时带着就行。我也会按普通朋友的方式收下，不给它加别的剧情。你们公司今天是突然开零食大会了吗？"],
+      replies: {
+        positive: ["对，就是普通朋友分享零食。", "哈哈，确实像零食大会。"],
+        neutral: ["嗯，到时候给你。", "就是顺手。"],
+        negative: ["我留零食不代表暗示喜欢你。", "请不要每次都重新解读我的意思。"],
