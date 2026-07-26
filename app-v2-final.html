@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta id="themeColorMeta" name="theme-color" content="#7c3aed" />
+  <meta name="description" content="完全离线的恋爱沟通闯关训练工具，包含6名差异化角色、45关实战、本地备份与密码锁" />
+  <link rel="manifest" href="manifest-v206.json" />
+  <link rel="icon" href="icon.svg" />
+  <link rel="stylesheet" href="style-v206.css" />
+  <title>心动训练营 · 离线正式版 V2.0</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">V2.0 离线正式版 · 6名角色 · 45关</p>
+        <h1>心动训练营</h1>
+      </div>
+      <button id="installBtn" class="ghost-btn hidden" type="button">安装到桌面</button>
+    </header>
+
+    <main id="mainView" aria-live="polite"></main>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button class="nav-item active" data-view="home" type="button">闯关</button>
+      <button class="nav-item" data-view="free" type="button">自由练习</button>
+      <button class="nav-item" data-view="courses" type="button">课程</button>
+      <button class="nav-item" data-view="stats" type="button">报告</button>
+      <button class="nav-item" data-view="settings" type="button">设置</button>
+    </nav>
+  </div>
+
+
+  <dialog id="lockDialog" class="lock-dialog" aria-labelledby="lockTitle">
+    <form id="unlockForm" class="lock-screen">
+      <div class="lock-icon" aria-hidden="true">🔒</div>
+      <div><span class="version-chip">本地访问保护</span><h2 id="lockTitle">心动训练营已锁定</h2><p>请输入本机密码继续。密码不会上传，也不会写入导出备份。</p></div>
+      <div class="form-group"><label for="unlockPassword">本地密码</label><input id="unlockPassword" type="password" autocomplete="current-password" inputmode="text" /></div>
+      <p id="unlockError" class="lock-error" role="alert"></p>
+      <button class="primary-btn full-btn" type="submit">解锁</button>
+      <small>忘记密码无法绕过；只能清除浏览器站点数据，这也会删除本机训练数据。</small>
+    </form>
+  </dialog>
+
+  <dialog id="onboardingDialog" class="onboarding-dialog" aria-labelledby="onboardingTitle">
+    <div id="onboardingContent"></div>
+    <div class="onboarding-actions">
+      <button id="onboardingSkipBtn" class="secondary-btn" type="button">跳过</button>
+      <div class="onboarding-step-dots" id="onboardingDots" aria-label="引导进度"></div>
+      <button id="onboardingNextBtn" class="primary-btn" type="button">下一步</button>
+    </div>
+  </dialog>
+
+  <dialog id="resultDialog" class="result-dialog">
+    <div id="resultContent"></div>
+    <form method="dialog" class="dialog-actions">
+      <button class="secondary-btn" value="close">返回地图</button>
+      <button id="retryBtn" class="primary-btn" value="retry">再练一次</button>
+    </form>
+  </dialog>
+
+  <script src="app-data-v206-01.js"></script>
+  <script src="app-data-v206-02.js"></script>
+  <script src="app-data-v206-03.js"></script>
+  <script src="app-data-v206-04.js"></script>
+  <script src="app-data-v206-05.js"></script>
+  <script src="app-data-v206-06.js"></script>
+  <script src="app-data-v206-07.js"></script>
+  <script src="app-data-v206-08.js"></script>
+  <script src="app-data-v206-09.js"></script>
+  <script src="app-data-v206-10.js"></script>
+  <script src="app-bootstrap-v206.js"></script>
+</body>
+</html>
