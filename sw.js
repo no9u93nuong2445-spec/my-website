@@ -1,6 +1,6 @@
-const CACHE_NAME = 'heart-training-v208';
-const FALLBACK_PAGE = './final-v208.html';
-const CORE_FILES = [FALLBACK_PAGE, './manifest.json', './icon.svg'];
+const CACHE_NAME = 'heart-training-direct-v211';
+const FALLBACK_PAGE = './index.html';
+const CORE_FILES = ['./', './index.html', './app.js', './style.css', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
