@@ -1,4 +1,4 @@
-const CACHE_NAME = 'heart-training-loader-v213';
+const CACHE_NAME = 'heart-training-loader-v214';
 const FALLBACK_PAGE = './index.html';
 const CORE_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
 
