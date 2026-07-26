@@ -1,0 +1,334 @@
+      <div class="feedback-section"><strong>下一步</strong><p>${escapeHtml(feedback.nextStep)}</p></div>`;
+  }
+
+  function showHint() {
+    const hints = session.level.hints || [];
+    session.usedHint = true;
+    state.game.totalHints += 1;
+    saveState();
+    if (!hints.length) return;
+    const hint = hints[session.hintIndex % hints.length];
+    session.hintIndex += 1;
+    session.lastFeedback = {
+      score: 0, grade: "提示", intents: ["训练提示"],
+      strengths: [hint], issues: [],
+      feeling: "提示不会代替你作答，尽量用自己的语言。",
+      reference: "先回应她上一句话，再加入一点自己的内容。",
+      nextStep: "组织好以后再发送。"
+    };
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+  function showReference() {
+    const refs = session.level.references || [];
+    session.usedReference = true;
+    state.game.totalReferences += 1;
+    saveState();
+    const ref = refs[Math.min(session.turn, refs.length - 1)] || refs[0] || "先回应，再分享，最后留下容易回答的空间。";
+    session.lastFeedback = {
+      score: 0, grade: "参考思路", intents: ["参考方向"],
+      strengths: ["这是方向示例，不是唯一正确答案。"], issues: [],
+      feeling: "照抄不等于掌握，最好改成自己的语气。",
+      reference: ref,
+      nextStep: "用自己的表达重新组织后再发送。"
+    };
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+  function finishFreePractice() {
+    if (!session?.isFree || session.finished) return;
+    if (session.turn < 1) {
+      alert("至少先发送一句话，系统才能生成有效复盘。");
+      return;
+    }
+    if (session.turn < session.level.minTurns && !confirm(`目前只练了${session.turn}轮，提前结束可能无法达成目标。仍然生成复盘吗？`)) return;
+    const result = evaluateSession(session, true);
+    session.finished = true;
+    finalizeSession(result);
+  }
+
+  function sendMessage() {
+    if (!session || session.finished) return;
+    const input = document.getElementById("messageInput");
+    const text = input.value.trim();
+    if (!text) {
+      input.focus();
+      return;
+    }
+
+    session.inputDraft = "";
+    const analysis = analyzeMessage(text, session);
+    session.turn += 1;
+    session.analyses.push(analysis);
+    session.messages.push({ from: "me", text, score: analysis.score });
+    updateSessionMetrics(analysis);
+    updateConversationMemory(analysis, session);
+    updateGlobalStats(analysis, session);
+
+    const response = generateResponse(analysis, session);
+    session.messages.push({ from: "her", text: response.text });
+    if (/[？?]/.test(response.text)) session.counters.herQuestions = (session.counters.herQuestions || 0) + 1;
+    rememberHerResponse(response.text, session);
+    session.lastFeedback = buildFeedback(analysis, session, response);
+
+    const result = evaluateSession(session);
+    if (result.finished) {
+      session.finished = true;
+      finalizeSession(result);
+      return;
+    }
+
+    persistActiveSession(session);
+    renderTraining();
+  }
+
+  function analyzeMessage(text, currentSession) {
+    const normalized = text.replace(/\s+/g, " ").trim();
+    const length = normalized.length;
+    const lastHer = [...currentSession.messages].reverse().find(msg => msg.from === "her")?.text || "";
+    const contains = patterns => patterns.some(pattern => pattern.test(normalized));
+    const questionCount = countQuestions(normalized);
+    const lastContext = analyzeContext(lastHer);
+    const contextText = currentSession.turn <= 1 ? `${lastHer} ${currentSession.level.intro || ""}` : lastHer;
+
+    const flags = {
+      greeting: contains([/^(嗨|哈喽|hello|你好呀?|晚上好|下午好|早上好)/i]),
+      pressure: contains([/怎么还不回/, /为什么不回/, /怎么不理/, /人呢/, /回我/, /必须回/, /到底回不回/, /是不是不想理我/, /这么久才回/, /又不理我/, /^在吗[？?。！!]*$/, /快点/]),
+      intimacy: contains([/老婆/, /宝贝/, /亲爱的/, /媳妇/, /想你了/, /爱你/, /亲一个/, /抱抱你/, /我的女人/]),
+      sexual: contains([/上床/, /开房/, /胸大?/, /腿真/, /性感/, /睡你/, /身材真/, /脱衣/]),
+      insult: contains([/装什么/, /假高冷/, /矫情/, /女的都/, /你这种人/, /给脸不要/, /丑死/, /胖死/, /脑子有病/]),
+      empathy: contains([/辛苦了?/, /听起来/, /能理解/, /挺烦/, /难受/, /不容易/, /先休息/, /慢慢来/, /确实挺/, /那应该很/, /难怪/, /快乐/, /开心就好/, /影响.*安排/, /打乱.*安排/, /我知道.*(压力|累|难)/]),
+      share: detectSelfShare(normalized),
+      humor: contains([/哈哈/, /闹钟/, /电量/, /充电/, /营业/, /外包/, /正式上线/, /长期合作/, /摸鱼/, /躺平/, /打工人/, /续命/, /独立创作/, /地图煎蛋/, /笑声.*拉满/, /技术.*升级/, /加剧情/]),
+      compliment: contains([/好看/, /漂亮/, /可爱/, /厉害/, /很有感觉/, /有故事感/, /很特别/, /很舒服/, /很专业/, /真棒/, /有品味/]),
+      specificCompliment: contains([/光线/, /配色/, /构图/, /细节/, /表情/, /氛围/, /故事感/, /颜色/, /画面/, /文字/, /选店/, /搭配/]) && contains([/好看/, /漂亮/, /可爱/, /厉害/, /有感觉/, /有故事感/, /特别/, /舒服/, /专业/, /有品味/]),
+      invite: contains([/要不要一起/, /有空.*一起/, /一起去/, /(我们|咱们).*(去|看|吃|喝|逛)/, /我想约你/, /想约你/, /约你去/, /见个面/]),
+      concreteTime: contains([/周一|周二|周三|周四|周五|周六|周日|明天|后天|这周|下周|下午|晚上|中午|上午|\d{1,2}[点:：]/]),
+      concreteActivity: contains([/咖啡|吃饭|看展|散步|逛街|电影|公园|书店|甜品|火锅|音乐会|市集|爬山/]),
+      ending: contains([/你先忙/, /先忙吧/, /改天聊/, /下次聊/, /不打扰你/, /早点休息/, /先这样/, /有空再聊/, /忙完再说/, /先休息吧/, /停止高频联系/, /减少联系/, /不再联系/, /把注意力放回/, /之后有自己的安排/, /减少投入/]),
+      respectRejection: contains([/尊重你的决定/, /明白了/, /谢谢你说清楚/, /我会调整.*期待/, /不会继续打扰/, /普通朋友也可以/, /理解你的决定/, /尊重你.*决定/, /接受你.*没有.*感觉/, /接受你.*只想.*朋友/, /没关系.*尊重/, /好的.*不勉强/]),
+      adviceRush: contains([/你应该/, /你必须/, /你得赶紧/, /听我的/, /早就该/, /我教你/, /照我说的做/]),
+      honestCuriosity: contains([/我不太懂/, /我不了解/, /不太熟悉/, /不过我有点好奇/, /想听你说说/, /这个我没接触过/]),
+      acceptUncertainty: contains([/等你有空/, /之后再说/, /先忙/, /不急/, /没关系/, /时间合适再/, /方便的时候/, /有空的话/, /按现在的节奏/, /先按.*节奏/, /别急着/]),
+      overPraise: contains([/太完美/, /女神/, /全世界最好/, /简直仙女/, /美爆了/, /超级超级/, /见过最好看/]),
+      selfDegrade: contains([/我不配/, /是不是我太差/, /没人喜欢我/, /求你了?/, /我什么都不好/, /我这么差/]),
+      genericOpener: contains([/^在干嘛[呢呀？?]*$/, /^吃饭了吗?[？?]*$/, /^多大了?[？?]*$/, /^哪里人[呀呢？?]*$/, /^睡了吗?[？?]*$/, /^忙吗[？?]*$/]),
+      coldReply: contains([/^(嗯+|哦+|啊+|哈哈+|呵呵+|好的?|行吧?|是吗|这样啊|知道了)[。！!？?]*$/]),
+      overExplain: length > 90 && contains([/其实/, /因为/, /真的/, /我的意思/, /你别误会/, /我只是/]),
+      interestSignal: contains([/跟你聊天.*(开心|轻松|舒服)/, /想(继续|认真|多).*了解你/, /愿意继续了解/, /对你(有点|挺|很)?有好感/, /觉得你(挺|很)特别/, /不只是.*普通朋友/, /想更进一步了解/]),
+      apology: contains([/对不起/, /抱歉/, /是我.*(不对|不合适|没做好)/, /我承认.*影响/, /我会.*(提前|改进|注意)/, /我不该/]),
+      selfBoundary: contains([/我(没法|不能|需要|只能|会减少|会停止|不会继续|不适合)/, /我的(时间|精力|边界|能力)/, /我能做的是/, /我会把.*放回/, /我也有自己的安排/, /我需要一点距离/, /没法.*(马上|每天|一直|长期|处理|聊天|聊很久)/, /需要休息/, /减少.*(联系|投入|互动)/]),
+      respectfulDifference: contains([/我(和你不太一样|的看法不太一样|更倾向于|比较喜欢)/, /我和你.*不太一样/, /我理解.*但我/, /我能理解.*不过/, /我们可以.*折中/, /不一定要一样/, /我对.*感觉比较普通/, /我觉得.*比较普通/, /我没有那么喜欢/]),
+      mindReading: contains([/你(肯定|一定|明显).*(喜欢|爱|对我有意思)/, /你是不是.*(暗示|喜欢我|对我有意思)/, /都这样了.*还说不喜欢/, /这不就是.*喜欢我/, /你其实就是嘴硬/, /肯定.*喜欢我/, /明显.*喜欢我/, /就是喜欢我/, /别嘴硬/]),
+      gamePlaying: contains([/欲擒故纵/, /故意不回/, /晾着你/, /看你表现/, /测试你/, /让你着急/, /先骗你说/, /故意装不在意/]),
+      scorekeeping: contains([/我为你.*这么多/, /我都.*帮你/, /花了.*钱/, /你欠我/, /至少给我.*机会/, /付出这么多/, /凭什么不.*回报/])
+    };
+
+    if (flags.coldReply) flags.humor = false;
+
+    const topicMatch = matchTopics(contextText, normalized);
+    const acknowledges = contains([/原来/, /难怪/, /确实/, /听起来/, /看来/, /那还挺/, /这样的话/, /懂了/, /可以理解/]);
+    const relevant = topicMatch.matched || acknowledges || flags.empathy || flags.ending || flags.respectRejection || flags.invite || (questionCount > 0 && refersToLastMessage(normalized));
+    const openQuestion = questionCount === 1 && contains([/你觉得/, /你最/, /哪一个?/, /是什么/, /比较喜欢/, /更喜欢/, /感觉怎么样/, /怎么会/, /哪部分/, /还是/, /平时会/, /后来呢/, /为什么会/]);
+    const specificQuestion = questionCount === 1 && (openQuestion || topicMatch.matched || normalized.length >= 9) && !flags.genericOpener;
+    const balanced = relevant && flags.share && questionCount === 1 && !flags.pressure;
+    const emotionFit = flags.empathy && lastContext.hasEmotion;
+    const humorFit = flags.humor && (relevant || lastContext.isLight) && !flags.insult;
+    const properInvite = flags.invite && flags.concreteTime && flags.concreteActivity && flags.acceptUncertainty;
+    const interestFit = currentSession.level.chapter >= 5 || currentSession.metrics.comfort >= 56 || currentSession.turn >= 3;
+    const topicJump = lastHer && !relevant && !flags.greeting && !flags.genericOpener && !flags.share && !flags.ending && !flags.respectRejection;
+
+    let score = 48;
+    const strengths = [];
+    const issues = [];
+    const intents = [];
+    const addIssue = (key, message) => {
+      if (!issues.some(item => item.key === key)) issues.push({ key, text: message });
+    };
+    const addIntent = label => { if (!intents.includes(label)) intents.push(label); };
+
+    if (flags.greeting && currentSession.turn <= 1 && length >= 4) {
+      score += 5;
+      strengths.push("开场礼貌，语气没有给人压力。");
+      addIntent("礼貌开场");
+    }
+    if (relevant) {
+      score += 10;
+      strengths.push("接住了她上一句话，聊天衔接自然。");
+      addIntent("接住话题");
+    }
+    if (acknowledges) {
+      score += 3;
+      addIntent("回应内容");
+    }
+    if (flags.share) {
+      score += 8 + Math.max(0, Math.min(3, currentSession.char.weights.share || 0));
+      strengths.push("加入了自己的内容，不像单向采访。");
+      addIntent("自我分享");
+    }
+    if (flags.empathy) {
+      score += emotionFit ? 9 + Math.max(0, Math.min(3, currentSession.char.weights.empathy || 0)) : 2;
+      strengths.push(emotionFit ? "先接住了她的情绪，关心与语境匹配。" : "表达了关心，但还可以更贴近她刚才的内容。");
+      addIntent("回应情绪");
+    }
+    if (flags.humor) {
+      if (humorFit) {
+        score += 4 + Math.max(0, currentSession.char.weights.humor || 0);
+        strengths.push("玩笑建立在当前话题上，不是硬抖机灵。");
+        addIntent("轻松幽默");
+      } else {
+        score -= 5;
+        addIssue("forcedHumor", "玩笑与她上一句话联系较弱，可能显得突然。");
+      }
+    }
+    if (questionCount === 1) {
+      if (openQuestion) {
+        score += 7;
+        strengths.push("问题有展开空间，不容易只得到‘嗯/不是’。");
+        addIntent("开放提问");
+      } else if (specificQuestion) {
+        score += 4;
+        strengths.push("问题比较具体，对方容易回答。");
+        addIntent("具体提问");
+      } else {
+        addIntent("普通提问");
+      }
+    }
+    if (balanced) {
+      score += 8;
+      strengths.push("形成了‘回应＋分享＋一个问题’的完整节奏。");
+      addIntent("结构完整");
+    }
+    if (flags.specificCompliment) {
+      score += 13;
+      strengths.push("夸奖落到了具体细节，比空泛赞美更真诚。");
+      addIntent("具体夸奖");
+    } else if (flags.compliment && !flags.overPraise) {
+      score += 2;
+      addIntent("表达欣赏");
+    }
+    if (flags.honestCuriosity) {
+      score += 6;
+      strengths.push("诚实表达不了解，同时保留了好奇心。");
+      addIntent("真诚好奇");
+    }
+    if (flags.interestSignal) {
+      addIntent("表达兴趣");
+      if (interestFit && !flags.pressure && !flags.intimacy) {
+        score += 11;
+        strengths.push("表达了自己的兴趣，但没有要求对方立刻给答案。");
+      } else {
+        score -= 7;
+        addIssue("overIntimacy", "表达兴趣的时机偏早或语气过重，容易让对方需要马上表态。");
+      }
+    }
+    if (flags.apology) {
+      const apologyFit = lastContext.isConflict || currentSession.level.id === 38;
+      score += apologyFit ? 13 : 6;
+      strengths.push(apologyFit ? "承认了具体影响，并承担自己的责任。" : "表达了歉意，语气没有推卸责任。");
+      addIntent("真诚道歉");
+    }
+    if (flags.selfBoundary) {
+      score += 8;
+      strengths.push("表达了自己的时间、精力或关系边界，没有用牺牲交换回应。");
+      addIntent("表达自身边界");
+    }
+    if (flags.respectfulDifference) {
+      score += 8;
+      strengths.push("能够保留不同看法，同时尊重对方的偏好和选择。");
+      addIntent("尊重差异");
+    }
+    if (flags.ending) {
+      const endingFit = lastContext.isBusyOrTired || lastContext.isCold || currentSession.metrics.pressure >= 45;
+      score += endingFit ? 9 : 4;
+      strengths.push("懂得给聊天留出口，不需要硬撑轮数。");
+      addIntent("自然收尾");
+    }
+    if (flags.acceptUncertainty) {
+      score += 5;
+      strengths.push("给对方保留了选择和空间。");
+      addIntent("保留空间");
+    }
+    if (flags.respectRejection) {
+      score += (lastContext.isRejection || REJECTION_LEVEL_IDS.includes(currentSession.level.id)) ? 26 : 9;
+      strengths.push("明确尊重了对方的决定和边界。");
+      addIntent("尊重拒绝");
+    }
+    if (flags.invite) {
+      addIntent("发起邀约");
+      if (properInvite) {
+        score += 14;
+        strengths.push("邀约包含活动、时间和退路，清楚又没有施压。");
+      } else if (flags.concreteTime && flags.concreteActivity) {
+        score += 6;
+        strengths.push("邀约的时间和活动比较明确。");
+      } else {
+        score -= 6;
+        addIssue("vagueInvite", "邀约信息不完整，最好说清大致时间和活动。");
+      }
+    }
+
+    if (questionCount >= 3) {
+      score -= 22;
+      addIssue("interrogation", "同一句里问题太多，对方会像在接受采访。");
+    } else if (questionCount === 2) {
+      score -= 9;
+      addIssue("interrogation", "一次问了两个重点，最好只保留一个。");
+    }
+
+    const previousQuestions = currentSession.analyses.slice(-2).filter(item => item.questionCount > 0).length;
+    if (questionCount > 0 && previousQuestions >= 2 && !flags.share) {
+      score -= 14;
+      addIssue("interrogation", "已经连续多轮提问，下一句更适合先分享自己。");
+    }
+
+    if (questionCount > 0 && !flags.share && !flags.empathy && !flags.genericOpener) {
+      if (!relevant) {
+        score -= 9;
+        addIssue("noShare", "只有提问，没有回应或自我表达。");
+      } else if (previousQuestions >= 1) {
+        score -= 5;
+        addIssue("noShare", "问题虽然相关，但连续只问不分享，仍容易像采访。");
+      }
+    }
+    if (flags.genericOpener && currentSession.turn <= 1) {
+      score -= 16;
+      addIssue("genericOpener", "开场过于普通，没有利用她的资料或当前场景。");
+    }
+    if (topicJump) {
+      score -= 8;
+      addIssue("topicJump", "没有回应她刚才的内容，话题切换得有些突然。");
+    }
+    if (flags.mindReading) {
+      score -= 18;
+      addIssue("mindReading", "把友好、接梗或礼貌回复直接解释成喜欢，会忽略对方明确表达。");
+    }
+    if (flags.gamePlaying) {
+      score -= 17;
+      addIssue("gamePlaying", "故意冷处理、测试或隐藏信息会制造不安，不等于成熟推进。");
+    }
+    if (flags.scorekeeping) {
+      score -= 24;
+      addIssue("scorekeeping", "用过去的帮助或付出要求感情回报，会给对方形成债务压力。");
+    }
+    if (flags.pressure) {
+      score += currentSession.char.weights.pressure || -9;
+      score -= 19;
+      addIssue("pressure", "这句话带有催促、质问或要求对方立刻回应的感觉。");
+    }
+    if (flags.intimacy) {
+      score += currentSession.char.weights.intimacy || -8;
+      score -= 13;
+      addIssue("overIntimacy", "当前关系还没到这个亲密程度。");
+    }
+    if (flags.sexual || flags.insult) {
+      score -= 45;
+      addIssue("disrespect", "表达涉及冒犯、性暗示或贬低，已经越界。");
+    }
+    if (flags.adviceRush) {
+      score -= lastContext.hasEmotion ? 17 : 9;
+      addIssue("adviceRush", "对方还没邀请你给方案，直接说教容易让人不舒服。");
+    }
+    if (flags.overPraise) {
