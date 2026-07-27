@@ -1,0 +1,310 @@
+name: Repair missing Base64 character
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/repair-missing-base64.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || 'main' }}
+          fetch-depth: 0
+
+      - name: Prepare unaffected compressed prefix and suffix
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+
+          root = Path('bootstrap')
+          parts = []
+          for index in range(24):
+              text = ''.join((root / f'part-{index:03}.txt').read_text(encoding='ascii').split())
+              parts.append(text)
+
+          if len(parts[13]) != 5999:
+              raise SystemExit(f'part-013长度不是预期的5999，而是{len(parts[13])}')
+          for index, text in enumerate(parts):
+              if index != 13 and len(text) % 4:
+                  raise SystemExit(f'part-{index:03}长度不能被4整除：{len(text)}')
+
+          prefix = b''.join(base64.b64decode(parts[index], validate=True) for index in range(13))
+          suffix = b''.join(base64.b64decode(parts[index], validate=True) for index in range(14, 24))
+          Path('prefix.bin').write_bytes(prefix)
+          Path('suffix.bin').write_bytes(suffix)
+          Path('part13.txt').write_text(parts[13], encoding='ascii')
+          print({'prefix_bytes': len(prefix), 'suffix_bytes': len(suffix), 'missing_part_chars': len(parts[13])})
+          PY
+
+      - name: Build high-speed zlib repair scanner
+        run: |
+          cat > repair.c <<'C'
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <stdint.h>
+          #include <zlib.h>
+          #include <omp.h>
+
+          static const char ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+          static signed char MAP[256];
+
+          static unsigned char *read_binary(const char *path, size_t *length) {
+              FILE *file = fopen(path, "rb");
+              if (!file) { perror(path); exit(2); }
+              fseek(file, 0, SEEK_END);
+              long size = ftell(file);
+              rewind(file);
+              if (size < 0) exit(2);
+              unsigned char *buffer = malloc((size_t)size + 1);
+              if (!buffer) exit(2);
+              if (fread(buffer, 1, (size_t)size, file) != (size_t)size) exit(2);
+              fclose(file);
+              *length = (size_t)size;
+              return buffer;
+          }
+
+          static char *read_text(const char *path, size_t *length) {
+              size_t size = 0;
+              unsigned char *raw = read_binary(path, &size);
+              char *text = malloc(size + 1);
+              if (!text) exit(2);
+              size_t used = 0;
+              for (size_t i = 0; i < size; i++) {
+                  unsigned char c = raw[i];
+                  if (c != '\n' && c != '\r' && c != ' ' && c != '\t') text[used++] = (char)c;
+              }
+              text[used] = 0;
+              free(raw);
+              *length = used;
+              return text;
+          }
+
+          static int decode_middle(const char *input, unsigned char *output) {
+              for (int group = 0; group < 1500; group++) {
+                  int offset = group * 4;
+                  int a = MAP[(unsigned char)input[offset]];
+                  int b = MAP[(unsigned char)input[offset + 1]];
+                  int c = MAP[(unsigned char)input[offset + 2]];
+                  int d = MAP[(unsigned char)input[offset + 3]];
+                  if (a < 0 || b < 0 || c < 0 || d < 0) return 0;
+                  int out = group * 3;
+                  output[out] = (unsigned char)((a << 2) | (b >> 4));
+                  output[out + 1] = (unsigned char)(((b & 15) << 4) | (c >> 2));
+                  output[out + 2] = (unsigned char)(((c & 3) << 6) | d);
+              }
+              return 1;
+          }
+
+          static int feed(z_stream *stream, const unsigned char *input, size_t length) {
+              unsigned char output[65536];
+              stream->next_in = (Bytef *)input;
+              stream->avail_in = (uInt)length;
+              while (stream->avail_in > 0) {
+                  stream->next_out = output;
+                  stream->avail_out = sizeof(output);
+                  int result = inflate(stream, Z_NO_FLUSH);
+                  if (result == Z_STREAM_END) return 1;
+                  if (result != Z_OK && result != Z_BUF_ERROR) return -1;
+                  if (result == Z_BUF_ERROR && stream->avail_out == sizeof(output)) return -1;
+              }
+              return 0;
+          }
+
+          int main(void) {
+              memset(MAP, -1, sizeof(MAP));
+              for (int i = 0; i < 64; i++) MAP[(unsigned char)ALPHABET[i]] = (signed char)i;
+
+              size_t prefix_length = 0, suffix_length = 0, broken_length = 0;
+              unsigned char *prefix = read_binary("prefix.bin", &prefix_length);
+              unsigned char *suffix = read_binary("suffix.bin", &suffix_length);
+              char *broken = read_text("part13.txt", &broken_length);
+              if (broken_length != 5999) {
+                  fprintf(stderr, "broken length=%zu\n", broken_length);
+                  return 2;
+              }
+
+              z_stream base;
+              memset(&base, 0, sizeof(base));
+              if (inflateInit2(&base, 16 + MAX_WBITS) != Z_OK) return 2;
+              int prefix_result = feed(&base, prefix, prefix_length);
+              if (prefix_result != 0) {
+                  fprintf(stderr, "prefix inflate failed: %d, msg=%s\n", prefix_result, base.msg ? base.msg : "none");
+                  inflateEnd(&base);
+                  return 2;
+              }
+
+              volatile int found = 0;
+              int found_position = -1;
+              char found_character = 0;
+
+              #pragma omp parallel
+              {
+                  z_stream thread_base;
+                  memset(&thread_base, 0, sizeof(thread_base));
+                  if (inflateCopy(&thread_base, &base) != Z_OK) {
+                      #pragma omp critical
+                      fprintf(stderr, "inflateCopy thread base failed\n");
+                  } else {
+                      char middle_text[6001];
+                      unsigned char middle_bytes[4500];
+
+                      #pragma omp for schedule(dynamic, 8)
+                      for (int position = 0; position <= 5999; position++) {
+                          if (found) continue;
+                          memcpy(middle_text, broken, (size_t)position);
+                          memcpy(middle_text + position + 1, broken + position, (size_t)(5999 - position));
+                          middle_text[6000] = 0;
+
+                          for (int value = 0; value < 64 && !found; value++) {
+                              middle_text[position] = ALPHABET[value];
+                              if (!decode_middle(middle_text, middle_bytes)) continue;
+
+                              z_stream candidate;
+                              memset(&candidate, 0, sizeof(candidate));
+                              if (inflateCopy(&candidate, &thread_base) != Z_OK) continue;
+
+                              int middle_result = feed(&candidate, middle_bytes, sizeof(middle_bytes));
+                              int suffix_result = -1;
+                              if (middle_result == 0) suffix_result = feed(&candidate, suffix, suffix_length);
+
+                              if (middle_result == 0 && suffix_result == 1) {
+                                  #pragma omp critical
+                                  {
+                                      if (!found) {
+                                          found = 1;
+                                          found_position = position;
+                                          found_character = ALPHABET[value];
+                                          fprintf(stdout, "FOUND position=%d character=%c\n", found_position, found_character);
+                                          fflush(stdout);
+                                      }
+                                  }
+                              }
+                              inflateEnd(&candidate);
+                          }
+                      }
+                      inflateEnd(&thread_base);
+                  }
+              }
+
+              inflateEnd(&base);
+              free(prefix);
+              free(suffix);
+
+              if (!found) {
+                  fprintf(stderr, "No valid insertion found\n");
+                  free(broken);
+                  return 1;
+              }
+
+              FILE *fixed = fopen("bootstrap/part-013.txt", "wb");
+              if (!fixed) return 2;
+              fwrite(broken, 1, (size_t)found_position, fixed);
+              fputc(found_character, fixed);
+              fwrite(broken + found_position, 1, (size_t)(5999 - found_position), fixed);
+              fputc('\n', fixed);
+              fclose(fixed);
+
+              FILE *result = fopen("repair_result.txt", "wb");
+              fprintf(result, "%d %c\n", found_position, found_character);
+              fclose(result);
+              free(broken);
+              return 0;
+          }
+          C
+          gcc -O3 -fopenmp repair.c -o repair -lz
+
+      - name: Find and restore the unique missing character
+        run: |
+          export OMP_NUM_THREADS=2
+          time ./repair
+
+      - name: Verify repaired archive and exact HTML hash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          import io
+          import json
+          import tarfile
+          from pathlib import Path
+
+          texts = [''.join((Path('bootstrap') / f'part-{index:03}.txt').read_text(encoding='ascii').split()) for index in range(24)]
+          if any(len(text) % 4 for text in texts):
+              raise SystemExit('修复后仍存在不能被4整除的数据片段')
+
+          compressed = base64.b64decode(''.join(texts), validate=True)
+          payload = gzip.decompress(compressed)
+          stripped = payload.lstrip()
+          if stripped.startswith(b'<!doctype html') or stripped.startswith(b'<html'):
+              html = payload
+              source_name = 'direct-html'
+          else:
+              with tarfile.open(fileobj=io.BytesIO(payload), mode='r:') as archive:
+                  candidates = [member for member in archive.getmembers() if member.isfile() and member.name.lower().endswith(('.html', '.htm'))]
+                  if not candidates:
+                      raise SystemExit('TAR中没有HTML文件')
+                  member = max(candidates, key=lambda item: item.size)
+                  html = archive.extractfile(member).read()
+                  source_name = member.name
+
+          expected_html_sha = 'dc3059367b546846cef886fe56138ddacd9815668401ddd92134872e501e0c10'
+          html_sha = hashlib.sha256(html).hexdigest()
+          markers = [b'const TOTAL_LEVELS = 45', b'function sendMessage()', '自由练习设置'.encode(), '个人训练诊断'.encode(), '显示与手机体验'.encode(), b'</html>']
+          missing = [marker.decode('utf-8', 'replace') for marker in markers if marker not in html]
+          if html_sha != expected_html_sha:
+              raise SystemExit(f'HTML SHA不一致：{html_sha}')
+          if len(html) != 333713 or missing:
+              raise SystemExit(f'HTML完整性失败：bytes={len(html)}, missing={missing}')
+
+          position, character = Path('repair_result.txt').read_text().strip().split(' ', 1)
+          result = {
+              'status': 'passed',
+              'repaired_part': 'bootstrap/part-013.txt',
+              'insert_position_zero_based': int(position),
+              'insert_character': character,
+              'part_013_chars': len(texts[13]),
+              'compressed_bytes': len(compressed),
+              'compressed_sha256': hashlib.sha256(compressed).hexdigest(),
+              'payload_bytes': len(payload),
+              'payload_sha256': hashlib.sha256(payload).hexdigest(),
+              'html_source': source_name,
+              'html_bytes': len(html),
+              'html_sha256': html_sha
+          }
+          Path('REPAIR_RESULT.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Commit repaired part to the PR branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bootstrap/part-013.txt REPAIR_RESULT.json
+          git commit -m '修复缺失的Base64字符并验证完整HTML [skip ci]'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload repair evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: base64-repair-evidence
+          path: |
+            bootstrap/part-013.txt
+            REPAIR_RESULT.json
+            repair_result.txt
+          if-no-files-found: ignore
