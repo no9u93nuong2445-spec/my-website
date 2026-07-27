@@ -1,0 +1,103 @@
+name: Recover exact HTML from Git history
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/recover-exact-html-history.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout every reachable Git object
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || 'main' }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Search all historical blobs by exact SHA-256
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+
+          expected_sha = 'dc3059367b546846cef886fe56138ddacd9815668401ddd92134872e501e0c10'
+          expected_size = 333713
+          objects = subprocess.check_output(['git', 'rev-list', '--objects', '--all'], text=True).splitlines()
+          object_ids = [line.split(' ', 1)[0] for line in objects]
+          metadata = subprocess.run(
+              ['git', 'cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+              input='\n'.join(object_ids) + '\n', text=True, capture_output=True, check=True
+          ).stdout.splitlines()
+
+          candidates = []
+          for line in metadata:
+              oid, kind, size_text = line.split()
+              size = int(size_text)
+              if kind == 'blob' and (size == expected_size or 250000 <= size <= 450000):
+                  candidates.append((oid, size))
+
+          report = {'expected_sha256': expected_sha, 'expected_size': expected_size, 'candidate_count': len(candidates), 'checked': [], 'found': None}
+          target = None
+          for oid, size in candidates:
+              data = subprocess.check_output(['git', 'cat-file', 'blob', oid])
+              digest = hashlib.sha256(data).hexdigest()
+              report['checked'].append({'git_blob': oid, 'bytes': size, 'sha256': digest})
+              if size == expected_size and digest == expected_sha:
+                  target = (oid, data)
+                  report['found'] = {'git_blob': oid, 'bytes': size, 'sha256': digest}
+                  break
+
+          pathlib.Path('HISTORY_RECOVERY.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          if target is None:
+              raise SystemExit('仓库可达历史中未找到精确HTML对象')
+
+          out = pathlib.Path('appdata')
+          out.mkdir(exist_ok=True)
+          (out / 'app-v216.html').write_bytes(target[1])
+          PY
+
+      - name: Verify recovered application markers
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          path = Path('appdata/app-v216.html')
+          data = path.read_bytes()
+          markers = [b'const TOTAL_LEVELS = 45', b'function sendMessage()', '自由练习设置'.encode(), '个人训练诊断'.encode(), '显示与手机体验'.encode(), b'</html>']
+          missing = [item.decode('utf-8', 'replace') for item in markers if item not in data]
+          assert len(data) == 333713, len(data)
+          assert hashlib.sha256(data).hexdigest() == 'dc3059367b546846cef886fe56138ddacd9815668401ddd92134872e501e0c10'
+          assert not missing, missing
+          print('exact HTML recovered and verified')
+          PY
+
+      - name: Commit exact recovered HTML to PR branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add appdata/app-v216.html HISTORY_RECOVERY.json
+          git commit -m '从Git历史恢复V2.16完整单文件 [skip ci]'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-html-history-recovery
+          path: |
+            HISTORY_RECOVERY.json
+            appdata/app-v216.html
+          if-no-files-found: ignore
