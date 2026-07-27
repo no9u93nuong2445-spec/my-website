@@ -1,1 +1,1 @@
-export all bootstrap fragments
+recover exact HTML from Git history
