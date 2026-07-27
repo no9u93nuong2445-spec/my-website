@@ -1,0 +1,42 @@
+name: Export bootstrap fragments
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/export-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || 'main' }}
+      - name: Record fragment hashes
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          rows=[]
+          for path in sorted(Path('bootstrap').glob('part-*.txt')):
+              data=path.read_bytes()
+              text=b''.join(data.split())
+              rows.append({'name':path.name,'file_bytes':len(data),'chars':len(text),'sha256':hashlib.sha256(data).hexdigest(),'text_sha256':hashlib.sha256(text).hexdigest(),'start':text[:16].decode(),'end':text[-16:].decode()})
+          Path('BOOTSTRAP_EXPORT.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          PY
+      - name: Upload every original fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-fragments-full
+          path: |
+            bootstrap/part-*.txt
+            BOOTSTRAP_EXPORT.json
+          if-no-files-found: error
