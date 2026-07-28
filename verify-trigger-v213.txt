@@ -1,1 +1,1 @@
-recover exact HTML from Git history
+export source fragments for exact comparison
