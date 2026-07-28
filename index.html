@@ -2,165 +2,63 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#7c3aed" />
-  <title>心动训练营 V2.0</title>
-  <style>
-    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f6f3ff;color:#211943}body{display:grid;place-items:center;padding:22px}.card{width:min(100%,640px);background:white;border-radius:28px;padding:30px;box-shadow:0 22px 70px rgba(65,39,120,.14)}h1{margin:0 0 16px;font-size:clamp(28px,7vw,46px)}p{line-height:1.65;margin:0;color:#655d78}.bar{height:14px;margin:26px 0 18px;border-radius:999px;background:#e8ddff;overflow:hidden}.bar span{display:block;height:100%;width:4%;border-radius:inherit;background:linear-gradient(90deg,#7c3aed,#9333ea);transition:width .2s}.status{font-size:18px;font-weight:700;margin-bottom:8px}.detail{min-height:24px;color:#777087;font-size:14px;overflow-wrap:anywhere}button{margin-top:22px;border:0;border-radius:15px;padding:13px 20px;background:#7c3aed;color:#fff;font-size:17px;font-weight:800;cursor:pointer}.hidden{display:none}.error{color:#b42335}
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta id="themeColorMeta" name="theme-color" content="#7c3aed" />
+  <meta name="description" content="完全离线的恋爱沟通闯关训练工具，包含6名差异化角色、45关实战、本地备份与密码锁" />
+  <link rel="manifest" href="manifest.json?v=216" />
+  <link rel="icon" href="assets/icon-192.png?v=216" />
+  <link rel="stylesheet" href="style.css?v=216" />
+  <title>心动训练营 · 离线正式版 V2.0</title>
 </head>
 <body>
-  <main class="card">
-    <h1>心动训练营 V2.0</h1>
-    <div id="status" class="status">正在载入完整程序…</div>
-    <div class="bar"><span id="progress"></span></div>
-    <p>首次打开需要读取完整离线程序。载入后，关卡进度和聊天数据只保存在你的浏览器本地。</p>
-    <p id="detail" class="detail">正在清理旧缓存</p>
-    <button id="retry" class="hidden" type="button">重新载入</button>
-  </main>
-<script>
-(() => {
-  'use strict';
-  const RELEASE = '214';
-  const PART_COUNT = 24;
-  const statusEl = document.getElementById('status');
-  const detailEl = document.getElementById('detail');
-  const progressEl = document.getElementById('progress');
-  const retryEl = document.getElementById('retry');
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">V2.0 离线正式版 · 6名角色 · 45关</p>
+        <h1>心动训练营</h1>
+      </div>
+      <button id="installBtn" class="ghost-btn hidden" type="button">安装到桌面</button>
+    </header>
 
-  function update(percent, status, detail = '') {
-    progressEl.style.width = `${Math.max(4, Math.min(100, percent))}%`;
-    statusEl.textContent = status;
-    detailEl.textContent = detail;
-    statusEl.classList.remove('error');
-  }
+    <main id="mainView" aria-live="polite"></main>
 
-  function fail(error) {
-    console.error(error);
-    statusEl.textContent = '载入失败';
-    statusEl.classList.add('error');
-    detailEl.textContent = error && error.message ? error.message : String(error);
-    progressEl.style.width = '100%';
-    retryEl.classList.remove('hidden');
-  }
+    <nav class="bottom-nav" aria-label="主导航">
+      <button class="nav-item active" data-view="home" type="button">闯关</button>
+      <button class="nav-item" data-view="free" type="button">自由练习</button>
+      <button class="nav-item" data-view="courses" type="button">课程</button>
+      <button class="nav-item" data-view="stats" type="button">报告</button>
+      <button class="nav-item" data-view="settings" type="button">设置</button>
+    </nav>
+  </div>
 
-  function decodeBase64(encoded) {
-    const binary = atob(encoded);
-    const bytes = new Uint8Array(binary.length);
-    const block = 32768;
-    for (let offset = 0; offset < binary.length; offset += block) {
-      const end = Math.min(binary.length, offset + block);
-      for (let i = offset; i < end; i += 1) bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
+  <dialog id="lockDialog" class="lock-dialog" aria-labelledby="lockTitle">
+    <form id="unlockForm" class="lock-screen">
+      <div class="lock-icon" aria-hidden="true">🔒</div>
+      <div><span class="version-chip">本地访问保护</span><h2 id="lockTitle">心动训练营已锁定</h2><p>请输入本机密码继续。密码不会上传，也不会写入导出备份。</p></div>
+      <div class="form-group"><label for="unlockPassword">本地密码</label><input id="unlockPassword" type="password" autocomplete="current-password" inputmode="text" /></div>
+      <p id="unlockError" class="lock-error" role="alert"></p>
+      <button class="primary-btn full-btn" type="submit">解锁</button>
+      <small>忘记密码无法绕过；只能清除浏览器站点数据，这也会删除本机训练数据。</small>
+    </form>
+  </dialog>
 
-  function decodeParts(parts) {
-    const chunks = parts.map((part, index) => {
-      try {
-        return decodeBase64(part);
-      } catch (error) {
-        throw new Error(`程序数据片段 ${String(index).padStart(3, '0')} Base64解码失败：${error.message}`);
-      }
-    });
-    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const merged = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      merged.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return merged;
-  }
+  <dialog id="onboardingDialog" class="onboarding-dialog" aria-labelledby="onboardingTitle">
+    <div id="onboardingContent"></div>
+    <div class="onboarding-actions">
+      <button id="onboardingSkipBtn" class="secondary-btn" type="button">跳过</button>
+      <div class="onboarding-step-dots" id="onboardingDots" aria-label="引导进度"></div>
+      <button id="onboardingNextBtn" class="primary-btn" type="button">下一步</button>
+    </div>
+  </dialog>
 
-  function readTarText(bytes, offset, length) {
-    return new TextDecoder('utf-8').decode(bytes.subarray(offset, offset + length)).replace(/\0.*$/s, '');
-  }
+  <dialog id="resultDialog" class="result-dialog">
+    <div id="resultContent"></div>
+    <form method="dialog" class="dialog-actions">
+      <button class="secondary-btn" value="close">返回地图</button>
+      <button id="retryBtn" class="primary-btn" value="retry">再练一次</button>
+    </form>
+  </dialog>
 
-  function parseOctal(bytes, offset, length) {
-    const raw = readTarText(bytes, offset, length).trim().replace(/\0/g, '');
-    if (!raw) return 0;
-    const value = Number.parseInt(raw, 8);
-    if (!Number.isFinite(value)) throw new Error(`TAR文件大小字段无效：${raw}`);
-    return value;
-  }
-
-  function extractHtml(payload) {
-    const initial = new TextDecoder('utf-8').decode(payload.subarray(0, Math.min(payload.length, 4096))).trimStart().toLowerCase();
-    if (initial.startsWith('<!doctype html') || initial.startsWith('<html')) return new TextDecoder('utf-8').decode(payload);
-    const candidates = [];
-    let offset = 0;
-    while (offset + 512 <= payload.length) {
-      const header = payload.subarray(offset, offset + 512);
-      if (header.every(value => value === 0)) break;
-      const name = readTarText(header, 0, 100);
-      const prefix = readTarText(header, 345, 155);
-      const path = prefix ? `${prefix}/${name}` : name;
-      const size = parseOctal(header, 124, 12);
-      const type = String.fromCharCode(header[156] || 48);
-      const dataStart = offset + 512;
-      const dataEnd = dataStart + size;
-      if (dataEnd > payload.length) throw new Error(`TAR文件不完整：${path}`);
-      if ((type === '0' || type === '\0') && /\.html?$/i.test(path) && size > 200000) candidates.push({ path, size, bytes: payload.slice(dataStart, dataEnd) });
-      offset = dataStart + Math.ceil(size / 512) * 512;
-    }
-    if (!candidates.length) throw new Error('完整HTML程序未在离线包中找到');
-    candidates.sort((a, b) => b.size - a.size);
-    return new TextDecoder('utf-8').decode(candidates[0].bytes);
-  }
-
-  async function clearOldCaches() {
-    const jobs = [];
-    if ('caches' in window) jobs.push(caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))).catch(() => {}));
-    if ('serviceWorker' in navigator) jobs.push(navigator.serviceWorker.getRegistrations().then(items => Promise.all(items.map(item => item.unregister()))).catch(() => {}));
-    await Promise.all(jobs);
-  }
-
-  async function decompressGzip(bytes) {
-    if (typeof DecompressionStream !== 'function') throw new Error('当前浏览器版本过旧，不支持离线程序解压。请更新Chrome、Edge或Firefox后重试。');
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-
-  async function load() {
-    retryEl.classList.add('hidden');
-    await clearOldCaches();
-    update(8, '正在读取程序数据…', '准备读取24个完整数据片段');
-    const parts = [];
-    let encodedLength = 0;
-    for (let index = 0; index < PART_COUNT; index += 1) {
-      const file = String(index).padStart(3, '0');
-      const url = `./bootstrap/part-${file}.txt?v=${RELEASE}-${Date.now()}`;
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`程序数据片段 ${file} 读取失败（HTTP ${response.status}）`);
-      const text = (await response.text()).replace(/\s+/g, '');
-      if (!text || !/^[A-Za-z0-9+/=]+$/.test(text)) throw new Error(`程序数据片段 ${file} 内容无效`);
-      parts.push(text);
-      encodedLength += text.length;
-      update(8 + Math.round((index + 1) / PART_COUNT * 54), '正在读取程序数据…', `已读取 ${index + 1}/${PART_COUNT}`);
-    }
-    update(66, '正在逐段解码…', `已读取 ${(encodedLength / 1024).toFixed(0)} KB 编码数据`);
-    const compressed = decodeParts(parts);
-    if (compressed[0] !== 0x1f || compressed[1] !== 0x8b) throw new Error('程序压缩包头校验失败');
-    update(74, '正在解压完整程序…', `压缩数据 ${(compressed.length / 1024).toFixed(0)} KB，本步骤全部在浏览器本地完成`);
-    const payload = await decompressGzip(compressed);
-    update(86, '正在提取应用…', `解压后 ${(payload.length / 1024).toFixed(0)} KB`);
-    const html = extractHtml(payload);
-    const required = ['const TOTAL_LEVELS = 45', 'function sendMessage()', '自由练习设置', '个人训练诊断', '显示与手机体验', '</html>'];
-    const missing = required.filter(marker => !html.includes(marker));
-    if (html.length < 260000 || missing.length) throw new Error(`程序完整性校验失败${missing.length ? `，缺少：${missing.join('、')}` : ''}`);
-    update(100, '载入完成', '正在进入45关完整程序');
-    try { sessionStorage.setItem('heart-loader-release', RELEASE); } catch {}
-    setTimeout(() => {
-      document.open();
-      document.write(html);
-      document.close();
-    }, 60);
-  }
-
-  retryEl.addEventListener('click', () => load().catch(fail));
-  load().catch(fail);
-})();
-</script>
+  <script src="app.js?v=216"></script>
 </body>
 </html>
