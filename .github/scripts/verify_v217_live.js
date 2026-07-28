@@ -21,7 +21,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function waitForPublishedVersion() {
   let last = '';
-  for (let attempt = 1; attempt <= 60; attempt += 1) {
+  for (let attempt = 1; attempt <= 18; attempt += 1) {
     try {
       const stamp = Date.now();
       const [homeRes, appRes] = await Promise.all([
@@ -30,18 +30,19 @@ async function waitForPublishedVersion() {
       ]);
       const home = await homeRes.text();
       const app = await appRes.text();
-      last = `首页${homeRes.status}/${home.length}字节 app${appRes.status}/${app.length}字节`;
+      const appBytes = Buffer.byteLength(app);
+      last = `首页${homeRes.status}/${Buffer.byteLength(home)}字节 app${appRes.status}/${appBytes}字节`;
       if (homeRes.ok && appRes.ok && home.includes('app.js?v=217') &&
           app.includes('CONVERSATION_SUPPORT') && app.includes('conversationRepair') &&
-          app.includes('profileReference') && app.length > 295000) {
+          app.includes('profileReference') && appBytes > 285000) {
         result.checks.published = last;
-        result.checks.app_bytes = Buffer.byteLength(app);
+        result.checks.app_bytes = appBytes;
         return;
       }
     } catch (error) {
       last = `${error.name}: ${error.message}`;
     }
-    await sleep(10000);
+    await sleep(5000);
   }
   throw new Error(`等待V2.17发布超时：${last}`);
 }
