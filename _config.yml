@@ -1,8 +1,9 @@
 include:
-  - .bootstrap
+  - fragments
 exclude:
   - webdata
-  - fragments
+  - .bootstrap
+  - bootstrap
   - .release-v212
   - final-v208.html
   - stable.html
