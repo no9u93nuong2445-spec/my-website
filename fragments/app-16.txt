@@ -141,6 +141,7 @@
       REJECTION_LEVEL_IDS,
       CHARACTERS,
       CHARACTER_DIALOGUE,
+      CONVERSATION_SUPPORT,
       LEVELS,
       createSession,
       analyzeMessage,

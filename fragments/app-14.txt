@@ -27,7 +27,7 @@
       score -= 6;
       addIssue("tooLong", "这条信息略长，可以拆掉解释性内容。");
     }
-    if (!relevant && !flags.share && !flags.ending && !flags.respectRejection && !flags.greeting && !flags.genericOpener && !flags.coldReply) {
+    if (!relevant && !flags.share && !flags.ending && !flags.respectRejection && !flags.greeting && !flags.genericOpener && !flags.coldReply && !flags.conversationRepair && !flags.profileReference) {
       score -= 5;
       addIssue("generic", "表达缺少与当前话题的连接，容易显得模板化。");
     }
@@ -187,10 +187,11 @@
   function generateResponse(analysis, currentSession) {
     const { flags } = analysis;
     const dialogue = CHARACTER_DIALOGUE[currentSession.char.id];
+    const support = CONVERSATION_SUPPORT[currentSession.char.id] || CONVERSATION_SUPPORT.linxia;
     const memory = currentSession.memory;
     const stateLabel = getVisibleCharacterState(currentSession);
     const topic = chooseActiveTopic(analysis, currentSession);
-    const highPressure = currentSession.metrics.pressure >= 72 || flags.insult || flags.sexual;
+    const highPressure = currentSession.metrics.pressure >= 72 || flags.pressure || flags.insult || flags.sexual;
     const freeFollowup = Number(currentSession.freeResponseAdjustment || 0);
     const engagementComfort = clamp(56 - Math.round(freeFollowup * 0.35), 44, 68);
     const engagementInterest = clamp(46 - Math.round(freeFollowup * 0.25), 34, 60);
@@ -241,10 +242,35 @@
       pool = levelReplies?.positive || dialogue.warm;
       key = "respect-space";
       reason = "你没有继续施压，她更容易保持正常交流。";
+    } else if (flags.profileReference) {
+      pool = support.profile;
+      key = "profile-support";
+      reason = "你从她的资料或照片切入，她会先回答这个具体点，再留一个容易继续的话题。";
+    } else if (flags.conversationRepair) {
+      pool = support.restart;
+      key = "conversation-restart";
+      reason = "你在尝试重新找话题，她会主动提供一个清楚的聊天入口，而不是机械回复“不知道怎么接”。";
     } else if (analysis.score < 45 || analysis.questionCount >= 3) {
-      pool = levelReplies?.negative || dialogue.cold;
-      key = "cold";
-      reason = analysis.questionCount >= 3 ? "连续问题让她不知道先回答哪一个。" : "这句话与前文连接较弱或信息量不足，她难以自然展开。";
+      if (topic && dialogue.topicAnswers[topic] && !flags.pressure) {
+        const answer = pickUnique(dialogue.topicAnswers[topic], currentSession, `support-${topic}-answer`);
+        const followPool = dialogue.followUps[topic] || support.restart;
+        const follow = pickUnique(followPool, currentSession, `support-${topic}-follow`);
+        const text = joinResponse(answer, follow, currentSession.char.id);
+        memory.lastReaction = stateLabel;
+        return {
+          text,
+          reason: analysis.questionCount >= 3
+            ? "问题有些密，但她会先接住其中一个具体话题，并给你一个可继续的方向。"
+            : "表达还不够自然，但内容里有明确话题，她会先回应内容，而不是把聊天直接堵死。",
+          state: stateLabel,
+          topic
+        };
+      }
+      pool = (memory.negativeStreak || 0) >= 2 ? support.restart : support.lowScore;
+      key = (memory.negativeStreak || 0) >= 2 ? "low-score-restart" : "low-score-support";
+      reason = analysis.questionCount >= 3
+        ? "连续问题较多，她会提醒你一次聊一个，同时主动留下一个可回答的入口。"
+        : "这句话质量不高，但没有越界。她会适度配合训练，给出一个新的聊天抓手。";
     } else if (levelReplies) {
       if (analysis.score >= 78) {
         pool = levelReplies.positive || dialogue.warm;

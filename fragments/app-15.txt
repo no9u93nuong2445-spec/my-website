@@ -13,9 +13,9 @@
       key = "neutral";
       reason = "这句话可以继续，但暂时还不足以让她明显增加投入。";
     } else {
-      pool = currentSession.level.replies?.negative || dialogue.cold;
-      key = "negative";
-      reason = "表达存在明显问题，她的回复会变短或提醒你调整节奏。";
+      pool = support.lowScore || currentSession.level.replies?.negative || dialogue.cold;
+      key = "negative-support";
+      reason = "表达存在问题，但没有越界。她会指出节奏问题，同时保留一个继续交流的入口。";
     }
 
     let text = pickUnique(pool, currentSession, key);

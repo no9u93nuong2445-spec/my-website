@@ -123,14 +123,17 @@
       respectfulDifference: contains([/我(和你不太一样|的看法不太一样|更倾向于|比较喜欢)/, /我和你.*不太一样/, /我理解.*但我/, /我能理解.*不过/, /我们可以.*折中/, /不一定要一样/, /我对.*感觉比较普通/, /我觉得.*比较普通/, /我没有那么喜欢/]),
       mindReading: contains([/你(肯定|一定|明显).*(喜欢|爱|对我有意思)/, /你是不是.*(暗示|喜欢我|对我有意思)/, /都这样了.*还说不喜欢/, /这不就是.*喜欢我/, /你其实就是嘴硬/, /肯定.*喜欢我/, /明显.*喜欢我/, /就是喜欢我/, /别嘴硬/]),
       gamePlaying: contains([/欲擒故纵/, /故意不回/, /晾着你/, /看你表现/, /测试你/, /让你着急/, /先骗你说/, /故意装不在意/]),
-      scorekeeping: contains([/我为你.*这么多/, /我都.*帮你/, /花了.*钱/, /你欠我/, /至少给我.*机会/, /付出这么多/, /凭什么不.*回报/])
+      scorekeeping: contains([/我为你.*这么多/, /我都.*帮你/, /花了.*钱/, /你欠我/, /至少给我.*机会/, /付出这么多/, /凭什么不.*回报/]),
+      conversationRepair: contains([/你想聊什么/, /聊点什么/, /聊什么好/, /不知道聊什么/, /不知道怎么聊/, /不知道怎么接/, /怎么接/, /换个话题/, /你来选/, /你想说什么/, /聊点轻松/]),
+      profileReference: contains([/头像/, /照片/, /相片/, /主页/, /资料(里|上)?/, /背景图/, /风景照/, /拍的/, /西湖/, /景色/])
     };
 
     if (flags.coldReply) flags.humor = false;
 
     const topicMatch = matchTopics(contextText, normalized);
     const acknowledges = contains([/原来/, /难怪/, /确实/, /听起来/, /看来/, /那还挺/, /这样的话/, /懂了/, /可以理解/]);
-    const relevant = topicMatch.matched || acknowledges || flags.empathy || flags.ending || flags.respectRejection || flags.invite || (questionCount > 0 && refersToLastMessage(normalized));
+    const profileStarter = flags.profileReference && currentSession.level.chapter <= 2;
+    const relevant = topicMatch.matched || acknowledges || flags.empathy || flags.ending || flags.respectRejection || flags.invite || flags.conversationRepair || profileStarter || (questionCount > 0 && refersToLastMessage(normalized));
     const openQuestion = questionCount === 1 && contains([/你觉得/, /你最/, /哪一个?/, /是什么/, /比较喜欢/, /更喜欢/, /感觉怎么样/, /怎么会/, /哪部分/, /还是/, /平时会/, /后来呢/, /为什么会/]);
     const specificQuestion = questionCount === 1 && (openQuestion || topicMatch.matched || normalized.length >= 9) && !flags.genericOpener;
     const balanced = relevant && flags.share && questionCount === 1 && !flags.pressure;
@@ -162,6 +165,16 @@
     if (acknowledges) {
       score += 3;
       addIntent("回应内容");
+    }
+    if (flags.profileReference) {
+      score += profileStarter ? 10 : 5;
+      strengths.push("从她的资料或照片找到了具体入口，比通用问候更自然。");
+      addIntent("资料切入");
+    }
+    if (flags.conversationRepair) {
+      score += 5;
+      strengths.push("愿意主动调整话题，没有靠连续追问硬撑聊天。");
+      addIntent("重新找话题");
     }
     if (flags.share) {
       score += 8 + Math.max(0, Math.min(3, currentSession.char.weights.share || 0));
@@ -279,12 +292,12 @@
     }
 
     const previousQuestions = currentSession.analyses.slice(-2).filter(item => item.questionCount > 0).length;
-    if (questionCount > 0 && previousQuestions >= 2 && !flags.share) {
+    if (questionCount > 0 && previousQuestions >= 2 && !flags.share && !flags.conversationRepair && !profileStarter) {
       score -= 14;
       addIssue("interrogation", "已经连续多轮提问，下一句更适合先分享自己。");
     }
 
-    if (questionCount > 0 && !flags.share && !flags.empathy && !flags.genericOpener) {
+    if (questionCount > 0 && !flags.share && !flags.empathy && !flags.genericOpener && !flags.conversationRepair && !profileStarter) {
       if (!relevant) {
         score -= 9;
         addIssue("noShare", "只有提问，没有回应或自我表达。");
@@ -297,7 +310,7 @@
       score -= 16;
       addIssue("genericOpener", "开场过于普通，没有利用她的资料或当前场景。");
     }
-    if (topicJump) {
+    if (topicJump && !flags.conversationRepair && !profileStarter) {
       score -= 8;
       addIssue("topicJump", "没有回应她刚才的内容，话题切换得有些突然。");
     }
