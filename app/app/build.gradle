@@ -1,4 +1,66 @@
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
 plugins { id 'com.android.application' }
+
+def repoRoot = projectDir.parentFile.parentFile
+def generatedOfflineAssetsDir = layout.buildDirectory.dir('generated/offlineAssets')
+def sourceIndex = new File(repoRoot, 'index.html')
+def sourceCss = new File(repoRoot, 'style.css')
+def sourceFragments = (1..16).collect { number ->
+    new File(repoRoot, String.format('fragments/app-%02d.txt', number))
+}
+
+tasks.register('generateOfflineHtml') {
+    inputs.files([sourceIndex, sourceCss] + sourceFragments)
+    outputs.file(generatedOfflineAssetsDir.map { directory -> directory.file('index.html') })
+
+    doLast {
+        def missing = ([sourceIndex, sourceCss] + sourceFragments).findAll { file -> !file.isFile() }
+        if (!missing.isEmpty()) {
+            throw new GradleException('缺少离线网页源码：' + missing.collect { it.path }.join(', '))
+        }
+
+        def index = sourceIndex.getText('UTF-8')
+        def css = sourceCss.getText('UTF-8')
+        def app = sourceFragments.collect { file -> file.getText('UTF-8') }.join('')
+
+        // 网页端历史数据键保持不变，只统一当前程序版本显示。
+        app = app.replace('const APP_VERSION = "2.0";', 'const APP_VERSION = "2.18";')
+        app = app.replace('</script>', '<\\/script>')
+
+        index = Pattern.compile('(?s)\\s*<link rel="manifest"[^>]*>\\s*')
+            .matcher(index).replaceFirst('\n')
+        index = Pattern.compile('(?s)\\s*<link rel="icon"[^>]*>\\s*')
+            .matcher(index).replaceFirst('\n')
+        index = Pattern.compile('<link rel="stylesheet"[^>]*>')
+            .matcher(index).replaceFirst(Matcher.quoteReplacement('<style>\n' + css + '\n</style>'))
+        index = Pattern.compile('<script src="app\\.js[^"]*"></script>')
+            .matcher(index).replaceFirst(Matcher.quoteReplacement('<script>\n' + app + '\n</script>'))
+
+        def required = [
+            '<!doctype html',
+            '心动训练营',
+            'APP_VERSION = "2.18"',
+            'V2.18 离线正式版',
+            '</html>'
+        ]
+        if (index.getBytes('UTF-8').length < 200000 || !required.every { marker -> index.contains(marker) }) {
+            throw new GradleException('Android 离线页面生成失败或内容不完整')
+        }
+        if (index.contains('app.js?v=218') || index.contains('style.css?v=218')) {
+            throw new GradleException('Android 离线页面仍引用外部网页资源')
+        }
+
+        def outputDir = generatedOfflineAssetsDir.get().asFile
+        if (!outputDir.exists() && !outputDir.mkdirs()) {
+            throw new GradleException('无法创建 Android 离线资源目录')
+        }
+        def output = new File(outputDir, 'index.html')
+        output.setText(index, 'UTF-8')
+        println "Android offline HTML generated: ${output.length()} bytes"
+    }
+}
 
 android {
     namespace 'com.bianzhifeng.hearttraining'
@@ -8,12 +70,12 @@ android {
         applicationId 'com.bianzhifeng.hearttraining'
         minSdk 24
         targetSdk 35
-        versionCode 204
-        versionName '2.0.4'
+        versionCode 218
+        versionName '2.1.8'
     }
 
     sourceSets {
-        main.assets.srcDirs = ['../../webdata']
+        main.assets.srcDirs = [generatedOfflineAssetsDir.get().asFile]
     }
 
     buildTypes {
@@ -27,4 +89,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+tasks.matching { task -> task.name == 'preBuild' }.configureEach {
+    dependsOn tasks.named('generateOfflineHtml')
 }
