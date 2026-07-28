@@ -1,2 +1,0 @@
-Heart Training V2.18 Android validation trigger
-retry: 2026-07-29T00:40:00+09:00
