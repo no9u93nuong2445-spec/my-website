@@ -1,42 +1,21 @@
-const CACHE_NAME = 'heart-training-loader-v214';
-const FALLBACK_PAGE = './index.html';
-const CORE_FILES = ['./', './index.html', './manifest.json', './icon.svg'];
+const CACHE_NAME = "heart-training-offline-v2-0-direct-v216";
+const ASSETS = ["./", "./index.html?v=216", "./style.css?v=216", "./app.js?v=216", "./manifest.json?v=216", "./assets/icon-192.png?v=216", "./assets/icon-512.png?v=216"];
 
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(CORE_FILES))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
-      .then(() => self.clients.claim())
-  );
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))));
+  self.clients.claim();
 });
 
-function canonicalRequest(request) {
-  const url = new URL(request.url);
-  return new Request(url.origin + url.pathname, { method: 'GET' });
-}
-
-self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
-  const canonical = canonicalRequest(event.request);
-  event.respondWith(
-    fetch(event.request, { cache: 'no-store' })
-      .then(response => {
-        if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(canonical, response.clone()));
-        return response;
-      })
-      .catch(async () => {
-        const cached = await caches.match(canonical);
-        if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match(FALLBACK_PAGE);
-        throw new Error('offline resource unavailable');
-      })
-  );
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+    const copy = response.clone();
+    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+    return response;
+  }).catch(() => caches.match("./index.html?v=216"))));
 });
