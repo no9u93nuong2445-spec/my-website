@@ -3,7 +3,7 @@ name: Apply heart training V2.18
 on:
   workflow_dispatch:
   push:
-    branches: ['agent/heart-training-v218']
+    branches: [main]
     paths:
       - 'v218-trigger.txt'
       - '.github/workflows/apply-v218.yml'
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: main
           fetch-depth: 0
 
       - uses: actions/setup-java@v4
@@ -110,5 +110,5 @@ jobs:
             echo 'V2.18 source already present.'
           else
             git commit -m '修复连续对话与Android离线版本 V2.18 [skip ci]'
-            git push origin HEAD:${{ github.ref_name }}
+            git push origin main
           fi
