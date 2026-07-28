@@ -1,5 +1,5 @@
 const CACHE_NAME = "heart-training-offline-v2-0-direct-v216";
-const ASSETS = ["./", "./index.html?v=216", "./style.css?v=216", "./app.js?v=216", "./manifest.json?v=216", "./assets/icon-192.png?v=216", "./assets/icon-512.png?v=216"];
+const ASSETS = ["./", "./index.html?v=216", "./style.css?v=216", "./app.js?v=216", "./manifest.json?v=216", "./assets/icon-192.png?v=216"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
