@@ -1,0 +1,49 @@
+name: Export source fragments
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v213.txt'
+      - '.github/workflows/export-source-fragments.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build current concatenated source
+        run: |
+          mkdir -p fragment-export
+          cp -R fragments fragment-export/fragments
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root = Path('fragments')
+          app_parts = sorted(root.glob('app-*.txt'))
+          style_parts = sorted(root.glob('style-*.txt'))
+          app = ''.join(p.read_text(encoding='utf-8') for p in app_parts)
+          style = ''.join(p.read_text(encoding='utf-8') for p in style_parts)
+          Path('fragment-export/current-app.js').write_text(app, encoding='utf-8')
+          Path('fragment-export/current-style.css').write_text(style, encoding='utf-8')
+          report = {
+            'app_parts': [{'name': p.name, 'size': p.stat().st_size, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in app_parts],
+            'style_parts': [{'name': p.name, 'size': p.stat().st_size, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in style_parts],
+            'app_total_bytes': len(app.encode('utf-8')),
+            'app_sha256': hashlib.sha256(app.encode('utf-8')).hexdigest(),
+            'style_total_bytes': len(style.encode('utf-8')),
+            'style_sha256': hashlib.sha256(style.encode('utf-8')).hexdigest()
+          }
+          Path('fragment-export/FRAGMENT_REPORT.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+      - name: Upload source fragments
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-fragments-current
+          path: fragment-export
