@@ -1,4 +1,4 @@
-name: Diagnose and verify live V2.14
+name: Verify live direct V2.16
 
 on:
   workflow_dispatch:
@@ -12,112 +12,139 @@ permissions:
   contents: read
 
 concurrency:
-  group: diagnose-live-v214-${{ github.event.pull_request.number || github.ref }}
+  group: verify-live-direct-v216-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify-live:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     env:
       LIVE_URL: https://no9u93nuong2445-spec.github.io/my-website/
     steps:
       - uses: actions/checkout@v4
       - name: Install browser driver
         run: npm install --no-save --no-package-lock playwright-core@1.54.2
-      - name: Diagnose live application with Chrome
+      - name: Verify published direct website with Chrome
         run: |
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
           test -n "$CHROME"
           export CHROME
           node <<'NODE'
           const fs = require('fs');
+          const crypto = require('crypto');
           const { chromium } = require('playwright-core');
           const liveUrl = process.env.LIVE_URL;
-          const result = { status: 'failed', release: '214', url: liveUrl, checked_at: new Date().toISOString(), checks: {}, console: [], page_errors: [], request_failures: [], bad_responses: [], error: null };
+          const result = {
+            status: 'failed', release: '216', url: liveUrl,
+            checked_at: new Date().toISOString(), checks: {},
+            console: [], page_errors: [], request_failures: [], bad_responses: [], error: null
+          };
           const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-          const fetchTimed = (url, ms = 15000) => fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(ms) });
+          const sha256 = text => crypto.createHash('sha256').update(text).digest('hex');
 
-          async function waitForFiles() {
+          async function waitForPublishedDirectVersion() {
             let last = '';
-            for (let attempt = 1; attempt <= 24; attempt += 1) {
+            for (let attempt = 1; attempt <= 60; attempt += 1) {
               try {
                 const stamp = Date.now();
-                const [home, firstPart, lastPart] = await Promise.all([
-                  fetchTimed(`${liveUrl}?verify=${stamp}`),
-                  fetchTimed(`${liveUrl}bootstrap/part-000.txt?verify=${stamp}`),
-                  fetchTimed(`${liveUrl}bootstrap/part-023.txt?verify=${stamp}`)
+                const [homeRes, appRes, cssRes] = await Promise.all([
+                  fetch(`${liveUrl}?verify=${stamp}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) }),
+                  fetch(`${liveUrl}app.js?v=216&verify=${stamp}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) }),
+                  fetch(`${liveUrl}style.css?v=216&verify=${stamp}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) })
                 ]);
-                const html = await home.text();
-                const first = await firstPart.text();
-                const lastText = await lastPart.text();
-                last = `首页${home.status} 首段${firstPart.status} 末段${lastPart.status} 首页${html.length}字节`;
+                const home = await homeRes.text();
+                const app = await appRes.text();
+                const css = await cssRes.text();
+                last = `首页${homeRes.status}/${home.length}字节 app${appRes.status}/${app.length}字节 css${cssRes.status}/${css.length}字节`;
                 result.checks.last_publish_probe = last;
-                if (home.ok && firstPart.ok && lastPart.ok && html.includes("const RELEASE = '214'") && first.startsWith('H4sI') && lastText.replace(/\s+/g, '').length > 100) return;
-              } catch (error) { last = `${error.name}: ${error.message}`; result.checks.last_publish_probe = last; }
-              await sleep(5000);
+                const liquidLeak = app.includes('{% include_relative') || css.includes('{% include_relative');
+                if (homeRes.ok && appRes.ok && cssRes.ok &&
+                    home.includes('V2.0 离线正式版 · 6名角色 · 45关') &&
+                    home.includes('app.js?v=216') &&
+                    app.length > 250000 && app.includes('const TOTAL_LEVELS = 45') && app.includes('function sendMessage()') &&
+                    css.length > 35000 && css.includes('V2.0 正式版') && !liquidLeak) {
+                  result.checks.pages_published = last;
+                  result.checks.app_bytes = Buffer.byteLength(app);
+                  result.checks.app_sha256 = sha256(app);
+                  result.checks.css_bytes = Buffer.byteLength(css);
+                  result.checks.css_sha256 = sha256(css);
+                  result.checks.liquid_leak = false;
+                  return;
+                }
+              } catch (error) {
+                last = `${error.name}: ${error.message}`;
+                result.checks.last_publish_probe = last;
+              }
+              await sleep(10000);
             }
-            throw new Error(`静态文件未准备好：${last}`);
+            throw new Error(`等待V2.16直接版发布超时：${last}`);
           }
 
           async function snapshot(page) {
             result.checks.dom = await page.evaluate(() => ({
               title: document.title,
-              href: location.href,
               readyState: document.readyState,
-              htmlLength: document.documentElement.outerHTML.length,
-              bodyText: (document.body?.innerText || '').slice(0, 2500),
-              status: document.querySelector('#status')?.textContent || null,
-              detail: document.querySelector('#detail')?.textContent || null,
-              progress: document.querySelector('#progress')?.style?.width || null,
+              bodyText: (document.body?.innerText || '').slice(0, 2000),
               levelCards: document.querySelectorAll('.level-card').length,
               navItems: document.querySelectorAll('.nav-item').length,
               appShell: Boolean(document.querySelector('.app-shell')),
               loaderCard: Boolean(document.querySelector('#status')),
-              scripts: document.scripts.length,
-              styles: document.styleSheets.length
+              horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1
             }));
-            fs.writeFileSync('live-v214-dom.html', await page.content());
-            await page.screenshot({ path: 'live-v214.png', fullPage: true });
+            fs.writeFileSync('live-v216-dom.html', await page.content());
+            await page.screenshot({ path: 'live-v216.png', fullPage: true });
           }
 
           async function run() {
-            await waitForFiles();
-            result.checks.pages_published = result.checks.last_publish_probe;
-            const browser = await chromium.launch({ executablePath: process.env.CHROME, headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
+            await waitForPublishedDirectVersion();
+            const browser = await chromium.launch({
+              executablePath: process.env.CHROME,
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
             const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
             const page = await context.newPage();
-            page.on('console', msg => result.console.push(`${msg.type()}: ${msg.text()}`));
+            page.on('console', msg => { if (msg.type() === 'error') result.console.push(msg.text()); });
             page.on('pageerror', error => result.page_errors.push(error.stack || error.message));
             page.on('requestfailed', request => result.request_failures.push(`${request.url()} :: ${request.failure()?.errorText || 'failed'}`));
             page.on('response', response => { if (response.status() >= 400) result.bad_responses.push(`${response.status()} ${response.url()}`); });
             try {
               await page.goto(`${liveUrl}?verify=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-              try { await page.waitForFunction(() => document.querySelectorAll('.level-card').length === 45, null, { timeout: 75000 }); } catch {}
-              await snapshot(page);
-              const levels = result.checks.dom.levelCards;
-              const navs = result.checks.dom.navItems;
-              if (levels !== 45) throw new Error(`45关未渲染；当前${levels}关；状态=${result.checks.dom.status}; 详情=${result.checks.dom.detail}`);
-              if (navs !== 5) throw new Error(`导航数量错误：${navs}`);
-
+              await page.waitForFunction(() => document.querySelectorAll('.level-card').length === 45, null, { timeout: 60000 });
               const onboarding = page.locator('#onboardingDialog[open]');
               if (await onboarding.count()) await page.locator('#onboardingSkipBtn').click();
-              const views = [['free','#startFreeBtn'],['courses','.course-hero'],['stats','text=个人训练诊断'],['settings','#themeSelect'],['home','.level-card']];
+
+              const views = [
+                ['free', '#startFreeBtn'],
+                ['courses', '.course-hero'],
+                ['stats', 'text=个人训练诊断'],
+                ['settings', '#themeSelect'],
+                ['home', '.level-card']
+              ];
               for (const [view, marker] of views) {
                 await page.locator(`[data-view="${view}"]`).click();
                 await page.locator(marker).first().waitFor({ state: 'visible', timeout: 15000 });
               }
               result.checks.views = views.map(item => item[0]);
+
               await page.locator('.level-card:not([disabled])').first().click();
+              await page.locator('#messageInput').waitFor({ state: 'visible', timeout: 15000 });
               await page.locator('#messageInput').fill('看到你写不爱早起，我周末也经常睡到自然醒。你周末更喜欢探店还是宅着？');
               await page.locator('#sendBtn').click();
               await page.locator('.bubble-score').first().waitFor({ state: 'visible', timeout: 15000 });
               result.checks.scored_messages = await page.locator('.bubble-score').count();
               result.checks.her_messages = await page.locator('.message-row.her').count();
-              result.checks.mobile_overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+              await snapshot(page);
+
+              if (result.checks.dom.levelCards !== 45) throw new Error(`关卡数量错误：${result.checks.dom.levelCards}`);
+              if (result.checks.dom.navItems !== 5) throw new Error(`导航数量错误：${result.checks.dom.navItems}`);
+              if (result.checks.dom.loaderCard) throw new Error('仍显示旧加载器');
+              if (result.checks.dom.horizontalOverflow) throw new Error('390×844手机视口出现横向溢出');
               if (result.checks.scored_messages < 1 || result.checks.her_messages < 2) throw new Error('发送后未得到评分或角色回复');
-              if (result.checks.mobile_overflow) throw new Error('390×844视口横向溢出');
-              if (result.page_errors.length || result.console.some(item => item.startsWith('error:'))) throw new Error('浏览器控制台存在错误');
+              if (result.page_errors.length || result.console.length || result.request_failures.length || result.bad_responses.length) {
+                throw new Error('浏览器运行存在控制台、网络或页面错误');
+              }
               result.status = 'passed';
             } finally {
               await browser.close();
@@ -126,20 +153,20 @@ jobs:
 
           run().catch(error => { result.error = error.stack || String(error); }).finally(() => {
             result.checked_at = new Date().toISOString();
-            fs.writeFileSync('LIVE_VERIFIED.json', JSON.stringify(result, null, 2) + '\n');
+            fs.writeFileSync('LIVE_VERIFIED_V216.json', JSON.stringify(result, null, 2) + '\n');
             if (result.status !== 'passed') process.exitCode = 1;
           });
           NODE
-      - name: Upload diagnostic evidence
+      - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-v214-diagnostic
+          name: live-direct-v216-verification
           path: |
-            LIVE_VERIFIED.json
-            live-v214.png
-            live-v214-dom.html
+            LIVE_VERIFIED_V216.json
+            live-v216.png
+            live-v216-dom.html
           if-no-files-found: ignore
       - name: Require passing result
         if: always()
-        run: node -e "const r=require('./LIVE_VERIFIED.json'); if(r.status!=='passed'){console.error(JSON.stringify(r,null,2)); process.exit(1)}"
+        run: node -e "const r=require('./LIVE_VERIFIED_V216.json'); if(r.status!=='passed'){console.error(JSON.stringify(r,null,2)); process.exit(1)}"
