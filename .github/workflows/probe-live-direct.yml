@@ -1,0 +1,46 @@
+name: Probe live direct V2.16
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'probe-trigger-v216.txt'
+      - '.github/workflows/probe-live-direct.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe live files
+        run: |
+          set -euxo pipefail
+          URL='https://no9u93nuong2445-spec.github.io/my-website/'
+          STAMP="$(date +%s)"
+          curl -L --fail --max-time 30 -D home.headers -o home.html "${URL}?probe=${STAMP}"
+          curl -L --fail --max-time 30 -D app.headers -o app.js "${URL}app.js?v=216&probe=${STAMP}"
+          curl -L --fail --max-time 30 -D css.headers -o style.css "${URL}style.css?v=216&probe=${STAMP}"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          def info(name):
+              p=Path(name); b=p.read_bytes(); t=b.decode('utf-8','replace')
+              return {'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest(),'first_300':t[:300],'has_liquid': '{% include_relative' in t}
+          report={'home':info('home.html'),'app':info('app.js'),'css':info('style.css')}
+          Path('PROBE_V216.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Upload probe evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-direct-v216-probe
+          path: |
+            PROBE_V216.json
+            home.html
+            app.js
+            style.css
+            *.headers
