@@ -8,6 +8,12 @@ on:
       - 'v217-main-trigger.txt'
       - '.github/workflows/apply-v217.yml'
       - '.github/scripts/apply_v217.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'verify-trigger-v217.txt'
+      - '.github/workflows/apply-v217.yml'
+      - '.github/scripts/apply_v217.py'
 
 permissions:
   contents: write
