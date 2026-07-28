@@ -9,6 +9,7 @@ on:
       - '.github/workflows/apply-v217.yml'
       - '.github/scripts/apply_v217.py'
       - '.github/scripts/dialogue_v217_harness.js'
+      - '.github/scripts/verify_v217_live.js'
   pull_request:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - '.github/workflows/apply-v217.yml'
       - '.github/scripts/apply_v217.py'
       - '.github/scripts/dialogue_v217_harness.js'
+      - '.github/scripts/verify_v217_live.js'
 
 permissions:
   contents: write
@@ -86,3 +88,34 @@ jobs:
             git commit -m '优化角色接话与低分对话续接 V2.17 [skip ci]'
             git push origin main
           fi
+
+  verify-live:
+    needs: apply-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_URL: https://no9u93nuong2445-spec.github.io/my-website/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install browser driver
+        run: npm install --no-save --no-package-lock playwright-core@1.54.2
+      - name: Reproduce user conversation on live site
+        run: |
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME"
+          export CHROME
+          node .github/scripts/verify_v217_live.js
+      - name: Upload live verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dialogue-v217-live-verification
+          path: |
+            DIALOGUE_V217_VERIFIED.json
+            dialogue-v217-live.png
+          if-no-files-found: ignore
+      - name: Require passing live result
+        if: always()
+        run: node -e "const r=require('./DIALOGUE_V217_VERIFIED.json'); if(r.status!=='passed'){console.error(JSON.stringify(r,null,2)); process.exit(1)}"
