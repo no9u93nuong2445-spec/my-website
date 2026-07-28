@@ -10,12 +10,20 @@ on:
       - '.github/scripts/apply_v218.py'
       - '.github/scripts/build_android_webdata.py'
       - '.github/scripts/dialogue_v218_harness.js'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'v218-trigger.txt'
+      - '.github/workflows/apply-v218.yml'
+      - '.github/scripts/apply_v218.py'
+      - '.github/scripts/build_android_webdata.py'
+      - '.github/scripts/dialogue_v218_harness.js'
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-heart-training-v218
+  group: apply-heart-training-v218-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -25,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-java@v4
@@ -69,6 +77,7 @@ jobs:
           assert len(html) > 200000
           assert b'APP_VERSION = "2.18"' in html
           assert '心动训练营'.encode() in html
+          assert b'app.js?v=218' not in html
           print(f'android archive PASS: {len(html)} bytes')
           PY
 
@@ -77,6 +86,7 @@ jobs:
 
       - name: Check intended diff
         run: |
+          set -euo pipefail
           git diff --check
           git status --short
           test "$(find webdata -maxdepth 1 -name 'part-*.txt' | wc -l)" -eq 12
@@ -95,8 +105,9 @@ jobs:
             app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: ignore
 
-      - name: Commit verified V2.18 source
+      - name: Commit verified V2.18 source to current branch
         run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
@@ -109,6 +120,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'V2.18 source already present.'
           else
-            git commit -m '修复连续对话与Android离线版本 V2.18 [skip ci]'
-            git push origin main
+            git commit -m '重建V2.18 Android离线包并通过回归测试 [skip ci]'
+            BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+            git push origin HEAD:"${BRANCH}"
           fi
