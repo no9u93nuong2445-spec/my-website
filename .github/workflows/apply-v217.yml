@@ -44,14 +44,36 @@ jobs:
         run: python3 .github/scripts/apply_v217.py
 
       - name: Build and test direct application
+        id: build_test
         run: |
+          set +e
           cp app.js /tmp/app-template-v217.js
           cat fragments/app-{01..16}.txt > app.js
-          node --check app.js
-          node tests/dialogue.test.js | tee /tmp/dialogue-v217-test.log
-          grep -Fq '全部通过：6/6' /tmp/dialogue-v217-test.log
+          {
+            echo '=== NODE SYNTAX ==='
+            node --check app.js
+            syntax_rc=$?
+            echo "syntax_rc=$syntax_rc"
+            echo '=== DIALOGUE TESTS ==='
+            node tests/dialogue.test.js
+            test_rc=$?
+            echo "test_rc=$test_rc"
+          } > build-v217.log 2>&1
+          cat build-v217.log
+          cp app.js app-v217-generated.js
           mv /tmp/app-template-v217.js app.js
           rm -rf tests
+          grep -Fq 'syntax_rc=0' build-v217.log && grep -Fq '全部通过：6/6' build-v217.log
+
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apply-v217-build-evidence
+          path: |
+            build-v217.log
+            app-v217-generated.js
+          if-no-files-found: ignore
 
       - name: Commit verified source to main
         run: |
