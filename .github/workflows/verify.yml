@@ -3,6 +3,8 @@ name: Verify offline package
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -21,6 +23,14 @@ jobs:
           cat .bootstrap/part-*.txt | base64 --decode > /tmp/project.tar.gz
           tar -tzf /tmp/project.tar.gz | grep -q '^web/index.html$'
           tar -tzf /tmp/project.tar.gz | grep -q '^app/app/src/main/java/com/bianzhifeng/hearttraining/MainActivity.java$'
-          grep -q '心动训练营 V2.0' index.html
+
+          grep -q 'V2.18 离线正式版' index.html
+          grep -q 'app.js?v=218' index.html
+          grep -q "versionName '2.1.8'" app/app/build.gradle
+          grep -q "versionCode 218" app/app/build.gradle
+          grep -q "generateOfflineHtml" app/app/build.gradle
+          grep -q "site-v2-1-8" app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
+          grep -q 'getAssets().open(ASSET_INDEX)' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
+          ! grep -q "main.assets.srcDirs = \['../../webdata'\]" app/app/build.gradle
           ! grep -R '<uses-permission' app/app/src/main/AndroidManifest.xml
-          echo 'offline package: PASS'
+          echo 'offline source: PASS'
