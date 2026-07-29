@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate archive and source
+      - name: Validate archive and V2.19 source
         shell: bash
         run: |
           set -euo pipefail
@@ -24,13 +24,17 @@ jobs:
           tar -tzf /tmp/project.tar.gz | grep -q '^web/index.html$'
           tar -tzf /tmp/project.tar.gz | grep -q '^app/app/src/main/java/com/bianzhifeng/hearttraining/MainActivity.java$'
 
-          grep -q 'V2.18 离线正式版' index.html
-          grep -q 'app.js?v=218' index.html
-          grep -q "versionName '2.1.8'" app/app/build.gradle
-          grep -q "versionCode 218" app/app/build.gradle
+          grep -q 'V2.19 真人感训练版' index.html
+          grep -q 'app.js?v=219' index.html
+          grep -q 'app-v219-overlay.txt' app.js
+          grep -q 'ROLE_PERSONALITIES_V219' fragments/app-v219-overlay.txt
+          grep -q 'HIDDEN_GOALS_V219' fragments/app-v219-overlay.txt
+          grep -q 'classifySemanticV219' fragments/app-v219-overlay.txt
+          grep -q "versionName '2.1.9'" app/app/build.gradle
+          grep -q "versionCode 219" app/app/build.gradle
           grep -q "generateOfflineHtml" app/app/build.gradle
-          grep -q "site-v2-1-8" app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
+          grep -q "site-v2-1-9" app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
           grep -q 'getAssets().open(ASSET_INDEX)' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
           ! grep -q "main.assets.srcDirs = \['../../webdata'\]" app/app/build.gradle
           ! grep -R '<uses-permission' app/app/src/main/AndroidManifest.xml
-          echo 'offline source: PASS'
+          echo 'V2.19 offline source: PASS'
