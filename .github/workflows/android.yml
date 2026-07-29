@@ -8,7 +8,9 @@ on:
       - "fragments/**"
       - "index.html"
       - "style.css"
-      - ".github/scripts/dialogue_v218_harness.js"
+      - ".github/scripts/build_v219_app.py"
+      - ".github/scripts/dialogue_v219_harness.js"
+      - ".github/workflows/android.yml"
   pull_request:
     branches: [main]
     paths:
@@ -16,7 +18,8 @@ on:
       - "fragments/**"
       - "index.html"
       - "style.css"
-      - ".github/scripts/dialogue_v218_harness.js"
+      - ".github/scripts/build_v219_app.py"
+      - ".github/scripts/dialogue_v219_harness.js"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 
@@ -41,15 +44,15 @@ jobs:
       - name: Install Android SDK 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Validate dialogue engine
+      - name: Generate and validate V2.19 dialogue engine
         run: |
           set -euo pipefail
           cp app.js /tmp/app-template.js
           trap 'mv /tmp/app-template.js app.js' EXIT
-          cat fragments/app-{01..16}.txt > app.js
+          python3 .github/scripts/build_v219_app.py app.js
           node --check app.js
-          node .github/scripts/dialogue_v218_harness.js | tee android-dialogue-test.log
-          grep -Fq '全部通过：10/10' android-dialogue-test.log
+          node .github/scripts/dialogue_v219_harness.js | tee android-dialogue-test.log
+          grep -Fq '全部通过：16/16' android-dialogue-test.log
 
       - name: Build debug APK
         run: gradle -p app :app:assembleDebug --stacktrace
@@ -59,18 +62,20 @@ jobs:
           set -euo pipefail
           PAGE='app/app/build/generated/offlineAssets/index.html'
           test -s "$PAGE"
-          test "$(wc -c < "$PAGE")" -gt 200000
-          grep -q 'APP_VERSION = "2.18"' "$PAGE"
-          grep -q 'V2.18 离线正式版' "$PAGE"
-          ! grep -q 'app.js?v=218' "$PAGE"
-          ! grep -q 'style.css?v=218' "$PAGE"
-          grep -q "versionName '2.1.8'" app/app/build.gradle
-          grep -q 'site-v2-1-8' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
+          test "$(wc -c < "$PAGE")" -gt 215000
+          grep -q 'APP_VERSION = "2.19"' "$PAGE"
+          grep -q 'V2.19 真人感训练版' "$PAGE"
+          grep -q 'ROLE_PERSONALITIES_V219' "$PAGE"
+          grep -q 'HIDDEN_GOALS_V219' "$PAGE"
+          ! grep -q 'app.js?v=219' "$PAGE"
+          ! grep -q 'style.css?v=219' "$PAGE"
+          grep -q "versionName '2.1.9'" app/app/build.gradle
+          grep -q 'site-v2-1-9' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
 
       - name: Upload APK and validation evidence
         uses: actions/upload-artifact@v4
         with:
-          name: heart-training-v218-debug-apk
+          name: heart-training-v219-debug-apk
           path: |
             app/app/build/outputs/apk/debug/app-debug.apk
             app/app/build/generated/offlineAssets/index.html
