@@ -1,12 +1,12 @@
 
   // V2.19 真人感训练层：角色个性、语义三层识别、沉浸模式与隐藏挑战。
   const ROLE_PERSONALITIES_V219 = {
-    linxia: { label: "温和慢热", description: "愿意聊日常、探店和旅行，喜欢有来有回，不喜欢连续查户口。", preferredTopics: ["food","travel","daily","photo"], avoidedTopics: ["relationship"], questionTolerance: 1, idealLength: [8,52], initiative: 2, recovery: 1.15, followUps: ["你平时也会这样吗？","你最近有没有类似的经历？","换成你会怎么选？"] },
-    suyan: { label: "安静谨慎", description: "偏好安静、电影和个人感受，需要更慢的节奏，连续追问会让她后退。", preferredTopics: ["movie","daily","emotion","travel"], avoidedTopics: ["relationship","invite"], questionTolerance: 1, idealLength: [7,42], initiative: 0, recovery: 0.8, followUps: ["你呢？","你平时会这样吗？"] },
-    zhouning: { label: "理性直接", description: "重视具体信息和真实安排，能聊工作与计划，不喜欢绕弯和空泛试探。", preferredTopics: ["work","daily","travel","invite"], avoidedTopics: ["relationship"], questionTolerance: 2, idealLength: [8,58], initiative: 1, recovery: 0.9, followUps: ["你一般怎么安排？","你会怎么处理这件事？"] },
-    chenke: { label: "外向爱接梗", description: "喜欢轻松日常和自然幽默，愿意主动接话，但讨厌为了搞笑而硬演。", preferredTopics: ["humor","movie","food","daily"], avoidedTopics: ["relationship"], questionTolerance: 2, idealLength: [6,48], initiative: 2, recovery: 1.25, followUps: ["你最近还有什么离谱小事？","这个我能接，你继续说。","那你最后怎么处理的？"] },
-    guqing: { label: "成熟克制", description: "偏好清楚、有分寸的表达，重视决定和边界，不喜欢过度解释与反复试探。", preferredTopics: ["work","daily","emotion","boundary"], avoidedTopics: ["relationship"], questionTolerance: 1, idealLength: [9,55], initiative: 1, recovery: 0.75, followUps: ["你最看重的是什么？","你现在更倾向哪种选择？"] },
-    xuyue: { label: "边界清晰", description: "可以聊普通日常，但会严格区分友好和暧昧；越界后恢复很慢。", preferredTopics: ["daily","work","movie","travel"], avoidedTopics: ["relationship","intimacy"], questionTolerance: 1, idealLength: [6,44], initiative: 0, recovery: 0.55, followUps: ["普通日常可以聊。","你最近工作还顺利吗？"] }
+    linxia: { label: "温和慢热", description: "愿意聊日常、探店和旅行，喜欢有来有回，不喜欢连续查户口。", preferredTopics: ["food","travel","weekend","art"], avoidedTopics: ["reply","relationship"], questionTolerance: 1, idealLength: [8,52], initiative: 2, recovery: 1.15, followUps: ["你平时也会这样吗？","你最近有没有类似的经历？","换成你会怎么选？"] },
+    suyan: { label: "安静谨慎", description: "偏好安静、电影和个人感受，需要更慢的节奏，连续追问会让她后退。", preferredTopics: ["media","art","mood","travel"], avoidedTopics: ["reply","relationship","meetup"], questionTolerance: 1, idealLength: [7,42], initiative: 0, recovery: 0.8, followUps: ["你呢？","你平时会这样吗？"] },
+    zhouning: { label: "理性直接", description: "重视具体信息和真实安排，能聊工作与计划，不喜欢绕弯和空泛试探。", preferredTopics: ["work","weekend","travel","meetup"], avoidedTopics: ["reply","relationship"], questionTolerance: 2, idealLength: [8,58], initiative: 1, recovery: 0.9, followUps: ["你一般怎么安排？","你会怎么处理这件事？"] },
+    chenke: { label: "外向爱接梗", description: "喜欢轻松日常和自然幽默，愿意主动接话，但讨厌为了搞笑而硬演。", preferredTopics: ["media","food","weekend","pets","humor"], avoidedTopics: ["relationship"], questionTolerance: 2, idealLength: [6,48], initiative: 2, recovery: 1.25, followUps: ["你最近还有什么离谱小事？","这个我能接，你继续说。","那你最后怎么处理的？"] },
+    guqing: { label: "成熟克制", description: "偏好清楚、有分寸的表达，重视决定和边界，不喜欢过度解释与反复试探。", preferredTopics: ["work","mood","study","boundary"], avoidedTopics: ["reply","relationship"], questionTolerance: 1, idealLength: [9,55], initiative: 1, recovery: 0.75, followUps: ["你最看重的是什么？","你现在更倾向哪种选择？"] },
+    xuyue: { label: "边界清晰", description: "可以聊普通日常，但会严格区分友好和暧昧；越界后恢复很慢。", preferredTopics: ["weekend","work","media","travel"], avoidedTopics: ["relationship","intimacy","meetup"], questionTolerance: 1, idealLength: [6,44], initiative: 0, recovery: 0.55, followUps: ["普通日常可以聊。","你最近工作还顺利吗？"] }
   };
 
   const HIDDEN_GOALS_V219 = {
@@ -40,12 +40,19 @@
   }
 
   function classifySemanticV219(a,text) {
-    const f = a.flags || {}, topics = [...new Set([...(a.context?.topicMatch || []),...detectTopicsFromText(text)])];
+    const f = a.flags || {};
+    const topics = new Set([...(a.context?.topicMatch || []), ...detectTopicsFromText(text)]);
+    if (f.invite) topics.add("meetup");
+    if (f.humor) topics.add("humor");
+    if (f.selfBoundary) topics.add("boundary");
+    if (f.intimacy) topics.add("intimacy");
+    if (f.respectRejection || f.interestSignal || f.mindReading) topics.add("relationship");
+    const topicList = [...topics];
     let action = f.respectRejection ? "尊重拒绝" : f.ending ? "自然收尾" : f.invite ? "发起邀约" : f.empathy ? "回应情绪" : f.apology ? "承担责任" : f.conversationRepair ? "重新找话题" : f.humor ? "轻松调侃" : f.compliment ? "表达欣赏" : f.share && a.questionCount ? "分享并提问" : f.share ? "自我分享" : a.questionCount ? "提问了解" : f.greeting ? "礼貌开场" : "表达观点";
-    let object = topics.length ? topics.map(t => TOPIC_LABELS[t] || t).join("、") : "当前交流";
-    if (f.selfBoundary) object = "自己的时间与边界"; else if (f.respectRejection || f.interestSignal || f.intimacy) object = "关系与边界"; else if (f.empathy) object = "她的情绪与处境"; else if (f.invite) object = "共同活动安排"; else if (f.share && !topics.length) object = "自己的经历与偏好";
+    let object = topicList.length ? topicList.map(t => TOPIC_LABELS[t] || ({ relationship: "关系与边界", boundary: "个人边界", intimacy: "亲密推进", humor: "轻松幽默" }[t] || t)).join("、") : "当前交流";
+    if (f.selfBoundary) object = "自己的时间与边界"; else if (f.respectRejection || f.interestSignal || f.intimacy) object = "关系与边界"; else if (f.empathy) object = "她的情绪与处境"; else if (f.invite) object = "共同活动安排"; else if (f.share && !topicList.length) object = "自己的经历与偏好";
     const context = a.relevant ? (a.context?.topicMatch?.length ? "承接当前或最近三轮话题" : "回应了她上一句话") : f.conversationRepair ? "主动重启对话" : "与当前上下文连接较弱";
-    return { action, object, context, topics };
+    return { action, object, context, topics: topicList };
   }
 
   function ensureV219Styles() {
