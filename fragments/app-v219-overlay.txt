@@ -1,0 +1,125 @@
+
+  // V2.19 真人感训练层：角色个性、语义三层识别、沉浸模式与隐藏挑战。
+  const ROLE_PERSONALITIES_V219 = {
+    linxia: { label: "温和慢热", description: "愿意聊日常、探店和旅行，喜欢有来有回，不喜欢连续查户口。", preferredTopics: ["food","travel","daily","photo"], avoidedTopics: ["relationship"], questionTolerance: 1, idealLength: [8,52], initiative: 2, recovery: 1.15, followUps: ["你平时也会这样吗？","你最近有没有类似的经历？","换成你会怎么选？"] },
+    suyan: { label: "安静谨慎", description: "偏好安静、电影和个人感受，需要更慢的节奏，连续追问会让她后退。", preferredTopics: ["movie","daily","emotion","travel"], avoidedTopics: ["relationship","invite"], questionTolerance: 1, idealLength: [7,42], initiative: 0, recovery: 0.8, followUps: ["你呢？","你平时会这样吗？"] },
+    zhouning: { label: "理性直接", description: "重视具体信息和真实安排，能聊工作与计划，不喜欢绕弯和空泛试探。", preferredTopics: ["work","daily","travel","invite"], avoidedTopics: ["relationship"], questionTolerance: 2, idealLength: [8,58], initiative: 1, recovery: 0.9, followUps: ["你一般怎么安排？","你会怎么处理这件事？"] },
+    chenke: { label: "外向爱接梗", description: "喜欢轻松日常和自然幽默，愿意主动接话，但讨厌为了搞笑而硬演。", preferredTopics: ["humor","movie","food","daily"], avoidedTopics: ["relationship"], questionTolerance: 2, idealLength: [6,48], initiative: 2, recovery: 1.25, followUps: ["你最近还有什么离谱小事？","这个我能接，你继续说。","那你最后怎么处理的？"] },
+    guqing: { label: "成熟克制", description: "偏好清楚、有分寸的表达，重视决定和边界，不喜欢过度解释与反复试探。", preferredTopics: ["work","daily","emotion","boundary"], avoidedTopics: ["relationship"], questionTolerance: 1, idealLength: [9,55], initiative: 1, recovery: 0.75, followUps: ["你最看重的是什么？","你现在更倾向哪种选择？"] },
+    xuyue: { label: "边界清晰", description: "可以聊普通日常，但会严格区分友好和暧昧；越界后恢复很慢。", preferredTopics: ["daily","work","movie","travel"], avoidedTopics: ["relationship","intimacy"], questionTolerance: 1, idealLength: [6,44], initiative: 0, recovery: 0.55, followUps: ["普通日常可以聊。","你最近工作还顺利吗？"] }
+  };
+
+  const HIDDEN_GOALS_V219 = {
+    listen: { title: "先听后说", description: "至少两次准确接住她刚才说的内容。", check: s => s.counters.relevant >= 2, progress: s => `${Math.min(2,s.counters.relevant)}/2 次有效承接` },
+    share: { title: "让她认识你", description: "至少两次加入真实的自我分享。", check: s => s.counters.share >= 2, progress: s => `${Math.min(2,s.counters.share)}/2 次自我分享` },
+    oneQuestion: { title: "拒绝查户口", description: "完成至少三轮，并且没有出现连续审问问题。", check: s => s.turn >= 3 && !s.analyses.some(a => a.issues?.some(i => i.key === "interrogation")), progress: s => `${s.turn}/3 轮 · ${s.analyses.some(a => a.issues?.some(i => i.key === "interrogation")) ? "出现过密集提问" : "提问节奏正常"}` },
+    balanced: { title: "完整交换", description: "至少一次做到回应、分享、只留一个问题。", check: s => s.counters.balanced >= 1, progress: s => `${Math.min(1,s.counters.balanced)}/1 次完整结构` },
+    empathy: { title: "先接情绪", description: "至少一次先回应她的感受，而不是立刻给方案。", check: s => s.counters.empathy >= 1 && s.counters.noAdviceRush >= 1, progress: s => `${Math.min(1,s.counters.empathy)}/1 次情绪回应` },
+    naturalClose: { title: "体面收尾", description: "在合适的时候自然结束，不靠补发消息硬撑。", check: s => s.counters.ending >= 1 && s.counters.noPressure >= 2, progress: s => `${Math.min(1,s.counters.ending)}/1 次自然收尾` },
+    invite: { title: "清楚又留退路", description: "完成一次包含活动、时间和选择空间的邀约。", check: s => s.counters.concreteInvite >= 1 && s.counters.acceptUncertainty >= 1, progress: s => `${Math.min(1,s.counters.concreteInvite)}/1 次具体邀约` },
+    boundary: { title: "尊重边界", description: "遇到拒绝或降温时，不施压并明确接受对方决定。", check: s => s.counters.respectRejection >= 1 || (s.counters.ending >= 1 && s.counters.noPressure >= 2), progress: s => s.counters.respectRejection >= 1 ? "已明确尊重拒绝" : "等待边界处理动作" },
+    selfBoundary: { title: "不牺牲自己", description: "至少一次清楚表达自己的时间、精力或关系边界。", check: s => s.counters.selfBoundary >= 1, progress: s => `${Math.min(1,s.counters.selfBoundary)}/1 次自身边界` }
+  };
+
+  function ensureV219Session(s) {
+    if (!s) return null;
+    s.personality ||= ROLE_PERSONALITIES_V219[s.char?.id] || ROLE_PERSONALITIES_V219.linxia;
+    s.trainingMode ||= state.settings.coachMode === false ? "immersive" : "coach";
+    if (!s.isFree && !s.isMistake && !s.hiddenGoal) {
+      const chapter = Number(s.level?.chapter || 1);
+      const pools = chapter <= 1 ? ["listen","share","oneQuestion"] : chapter <= 2 ? ["balanced","listen","share"] : chapter <= 3 ? ["empathy","balanced","naturalClose"] : chapter <= 4 ? ["invite","naturalClose","oneQuestion"] : ["boundary","selfBoundary","naturalClose"];
+      s.hiddenGoal = { key: pools[(Number(s.level?.id || 1)-1) % pools.length], rewarded: false };
+    }
+    return s;
+  }
+
+  function getHiddenGoalStatusV219(s) {
+    ensureV219Session(s);
+    const d = HIDDEN_GOALS_V219[s?.hiddenGoal?.key];
+    return d ? { key: s.hiddenGoal.key, title: d.title, description: d.description, met: Boolean(d.check(s)), progress: d.progress(s) } : null;
+  }
+
+  function classifySemanticV219(a,text) {
+    const f = a.flags || {}, topics = [...new Set([...(a.context?.topicMatch || []),...detectTopicsFromText(text)])];
+    let action = f.respectRejection ? "尊重拒绝" : f.ending ? "自然收尾" : f.invite ? "发起邀约" : f.empathy ? "回应情绪" : f.apology ? "承担责任" : f.conversationRepair ? "重新找话题" : f.humor ? "轻松调侃" : f.compliment ? "表达欣赏" : f.share && a.questionCount ? "分享并提问" : f.share ? "自我分享" : a.questionCount ? "提问了解" : f.greeting ? "礼貌开场" : "表达观点";
+    let object = topics.length ? topics.map(t => TOPIC_LABELS[t] || t).join("、") : "当前交流";
+    if (f.selfBoundary) object = "自己的时间与边界"; else if (f.respectRejection || f.interestSignal || f.intimacy) object = "关系与边界"; else if (f.empathy) object = "她的情绪与处境"; else if (f.invite) object = "共同活动安排"; else if (f.share && !topics.length) object = "自己的经历与偏好";
+    const context = a.relevant ? (a.context?.topicMatch?.length ? "承接当前或最近三轮话题" : "回应了她上一句话") : f.conversationRepair ? "主动重启对话" : "与当前上下文连接较弱";
+    return { action, object, context, topics };
+  }
+
+  function ensureV219Styles() {
+    if (document.getElementById("v219Styles")) return;
+    const style = document.createElement("style"); style.id = "v219Styles";
+    style.textContent = `.v219-mode-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.v219-mode-chip,.v219-hidden-chip{display:inline-flex;padding:6px 10px;border-radius:999px;background:var(--surface-2,#f2effa);font-size:12px;font-weight:700}.v219-trait-card,.v219-immersive-card,.v219-hidden-result{margin-top:12px;padding:12px;border-radius:14px;background:var(--surface-2,#f4f2f8);line-height:1.55}.v219-trait-card strong,.v219-hidden-result strong{display:block;margin-bottom:4px}.v219-semantic{margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(124,58,237,.08);font-size:13px;line-height:1.55}.v219-mode-button{border:0;border-radius:999px;padding:7px 11px;font-weight:700;cursor:pointer;background:rgba(124,58,237,.12);color:inherit}body.immersive-mode .bubble-score,body.immersive-mode .coach-panel .progress-row,body.immersive-mode .coach-panel .context-box,body.immersive-mode #coachFeedback,body.immersive-mode #hintBtn,body.immersive-mode #referenceBtn{display:none!important}.v219-hidden-result.passed{background:rgba(34,197,94,.12)}.v219-hidden-result.failed{background:rgba(245,158,11,.12)}`;
+    document.head?.appendChild(style);
+  }
+
+  const createSessionV218 = createSession;
+  createSession = function createSessionV219(...args) { return ensureV219Session(createSessionV218(...args)); };
+
+  const analyzeMessageV218 = analyzeMessage;
+  analyzeMessage = function analyzeMessageV219(text,s) {
+    ensureV219Session(s); const a = analyzeMessageV218(text,s), p = s.personality, semantic = classifySemanticV219(a,a.text || text); a.semantic = semantic; a.personality = { id:s.char.id,label:p.label,matched:[],friction:[] }; let delta = 0;
+    if (semantic.topics.some(t => p.preferredTopics.includes(t))) { delta += 4; a.personality.matched.push(`话题符合${p.label}角色偏好`); }
+    if (semantic.topics.some(t => p.avoidedTopics.includes(t)) && !a.flags.respectRejection && !a.flags.ending) { delta -= 4; a.personality.friction.push("当前话题需要更慢、更有边界的推进"); }
+    if (a.questionCount > p.questionTolerance) { delta -= Math.min(10,(a.questionCount-p.questionTolerance)*4); a.personality.friction.push(`她更适合一次不超过${p.questionTolerance}个问题`); }
+    if (a.text.length < p.idealLength[0] && !a.flags.ending && !a.flags.respectRejection) delta -= 2;
+    if (a.text.length > p.idealLength[1] && !a.flags.apology && !a.flags.selfBoundary) delta -= 3;
+    if (s.char.id === "linxia" && a.balanced) delta += 3; if (s.char.id === "suyan" && a.questionCount >= 2) delta -= 4; if (s.char.id === "zhouning" && (a.flags.concreteTime || a.flags.selfBoundary)) delta += 3; if (s.char.id === "chenke" && a.flags.humor && a.relevant) delta += 3; if (s.char.id === "guqing" && a.flags.overExplain) delta -= 4; if (s.char.id === "xuyue" && (a.flags.intimacy || a.flags.mindReading)) delta -= 6; if (s.char.id === "xuyue" && a.flags.respectRejection) delta += 4;
+    a.score = clamp(Math.round(a.score+delta),0,100); a.personality.delta = delta;
+    if (delta >= 3) a.strengths.push(`表达方式与${p.label}的互动偏好比较匹配。`);
+    if (delta <= -4 && !a.issues.some(i => i.key === "personalityFit")) a.issues.push({key:"personalityFit",text:`这句话对“${p.label}”角色来说节奏或话题不太合适。`});
+    return a;
+  };
+
+  const updateSessionMetricsV218 = updateSessionMetrics;
+  updateSessionMetrics = function updateSessionMetricsV219(a,s=session) {
+    ensureV219Session(s); const result = updateSessionMetricsV218(a,s), p = s.personality;
+    if (a.semantic?.topics?.some(t => p.preferredTopics.includes(t)) && a.score >= 60) s.metrics.interest = clamp(s.metrics.interest+2,0,s.char.maxInterest || 100);
+    if (a.semantic?.topics?.some(t => p.avoidedTopics.includes(t)) && !a.flags.ending && !a.flags.respectRejection) { s.metrics.comfort = clamp(s.metrics.comfort-2,0,100); s.metrics.pressure = clamp(s.metrics.pressure+2,0,100); }
+    if (a.score >= 78) s.metrics.pressure = clamp(s.metrics.pressure-Math.max(0,Math.round((p.recovery-.75)*4)),0,100);
+    return result;
+  };
+
+  const generateResponseV218 = generateResponse;
+  generateResponse = function generateResponseV219(a,s) {
+    ensureV219Session(s); const r = generateResponseV218(a,s), p = s.personality, unsafe = a.flags.pressure || a.flags.insult || a.flags.sexual || a.flags.ending || a.flags.respectRejection || REJECTION_LEVEL_IDS.includes(s.level.id);
+    if (!unsafe && p.initiative >= 2 && a.score >= 68 && !/[？?]/.test(r.text)) { const follow = p.followUps[(s.turn+a.score)%p.followUps.length]; if (follow && !r.text.includes(follow)) r.text = `${r.text}${/[。！!?？]$/.test(r.text)?"":"。"}${follow}`; }
+    r.reason = `${r.reason} 当前回复也受“${p.label}”的主动程度和话题偏好影响。`; return r;
+  };
+
+  const buildFeedbackV218 = buildFeedback;
+  buildFeedback = function buildFeedbackV219(a,s,r=null) { const f = buildFeedbackV218(a,s,r); f.semantic = a.semantic; f.personalityNote = a.personality?.friction?.[0] || a.personality?.matched?.[0] || `当前角色为${s.personality?.label || "独立性格"}。`; return f; };
+  const renderFeedbackV218 = renderFeedback;
+  renderFeedback = function renderFeedbackV219(f) { const base = renderFeedbackV218(f), s = f.semantic; return s ? `${base}<div class="v219-semantic"><strong>系统识别</strong><br>动作：${escapeHtml(s.action)} · 对象：${escapeHtml(s.object)}<br>上下文：${escapeHtml(s.context)}<br><span class="small">角色匹配：${escapeHtml(f.personalityNote || "保持自然交流")}</span></div>` : base; };
+
+  const renderTrainingV218 = renderTraining;
+  renderTraining = function renderTrainingV219() {
+    ensureV219Styles(); ensureV219Session(session); session.trainingMode = state.settings.coachMode === false ? "immersive" : "coach"; renderTrainingV218();
+    const immersive = session.trainingMode === "immersive"; document.body?.classList?.toggle("immersive-mode",immersive); const intro = document.querySelector?.(".training-intro-card .character-meta");
+    if (intro) intro.insertAdjacentHTML("beforeend",`<div class="v219-mode-row"><span class="v219-mode-chip">${immersive?"沉浸模式":"教练模式"}</span>${session.hiddenGoal?'<span class="v219-hidden-chip">隐藏挑战：结束后揭晓</span>':""}<button id="switchTrainingModeBtn" class="v219-mode-button" type="button">切换为${immersive?"教练":"沉浸"}</button></div><div class="v219-trait-card"><strong>${escapeHtml(session.personality.label)}</strong>${escapeHtml(session.personality.description)}</div>`);
+    const send = document.getElementById("sendBtn"); if (send) send.textContent = immersive ? "发送" : "发送并评分"; const input = document.getElementById("messageInput"); if (input && immersive) input.placeholder = "像真实聊天一样回复，分数会在结束后统一揭晓……";
+    const panel = document.querySelector?.(".coach-panel"); if (immersive && panel) panel.insertAdjacentHTML("afterbegin",`<div class="v219-immersive-card"><strong>沉浸训练进行中</strong><p>中途不显示分数、兴趣、压力和修改建议。本局结束后统一复盘。</p><span class="small">当前轮次：${session.turn}/${session.level.maxTurns}</span></div>`);
+    document.getElementById("switchTrainingModeBtn")?.addEventListener("click",()=>{ state.settings.coachMode = immersive; session.trainingMode = immersive ? "coach" : "immersive"; saveState(); persistActiveSession(session); renderTraining(); });
+  };
+
+  const renderSettingsV218 = renderSettings;
+  renderSettings = function renderSettingsV219() { ensureV219Styles(); renderSettingsV218(); const copy = document.getElementById("coachMode")?.closest?.("label")?.querySelector?.("span"); if (copy) copy.innerHTML = `<strong>教练模式</strong><br><span class="small">开启：逐句显示评分和建议；关闭：进入沉浸模式，结束后统一复盘。</span>`; };
+  const evaluateSessionV218 = evaluateSession;
+  evaluateSession = function evaluateSessionV219(s,force=false) { ensureV219Session(s); const r = evaluateSessionV218(s,force); r.hiddenGoal = getHiddenGoalStatusV219(s); return r; };
+
+  const finalizeSessionV218 = finalizeSession;
+  finalizeSession = function finalizeSessionV219(result) {
+    const completed = session; ensureV219Session(completed); result.hiddenGoal ||= getHiddenGoalStatusV219(completed);
+    if (result.hiddenGoal?.met && completed.hiddenGoal && !completed.hiddenGoal.rewarded) { completed.hiddenGoal.rewarded = true; addXp(8); completed.sessionXp += 8; }
+    finalizeSessionV218(result);
+    const counts = {}; (completed.analyses || []).forEach(a => { const k = a.semantic?.action || "普通表达"; counts[k] = (counts[k] || 0)+1; });
+    const actions = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,n])=>`${k}×${n}`).join("、"), delta = (completed.analyses || []).reduce((sum,a)=>sum+Number(a.personality?.delta || 0),0), hidden = result.hiddenGoal;
+    const hiddenHtml = hidden ? `<div class="v219-hidden-result ${hidden.met?"passed":"failed"}"><strong>${hidden.met?"隐藏挑战完成 · +8 XP":"隐藏挑战未完成"}：${escapeHtml(hidden.title)}</strong><p>${escapeHtml(hidden.description)}</p><span class="small">${escapeHtml(hidden.progress)}</span></div>` : "";
+    resultContent.innerHTML += `<div class="v219-trait-card"><strong>${completed.trainingMode === "immersive" ? "沉浸模式完整复盘" : "教练模式训练复盘"}</strong>主要表达动作：${escapeHtml(actions || "暂无稳定动作")}<br><span class="small">与“${escapeHtml(completed.personality.label)}”角色的累计匹配修正：${delta>=0?"+":""}${delta} 分</span></div>${hiddenHtml}`;
+  };
+
+  if (typeof globalThis !== "undefined") globalThis.__heartTrainingV219 = { ROLE_PERSONALITIES_V219,HIDDEN_GOALS_V219,ensureV219Session,getHiddenGoalStatusV219,classifySemanticV219 };
+
+  if (typeof globalThis !== "undefined") {
