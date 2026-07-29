@@ -99,7 +99,7 @@ test("语义识别同时给出动作对象和上下文", () => {
   const session = make();
   session.messages.push({ from: "her", text: "我周末喜欢去吃火锅。" });
   const analysis = engine.analyzeMessage("听起来挺开心的，我周末也喜欢吃火锅。你更喜欢辣锅还是清汤？", session);
-  return analysis.semantic?.action === "分享并提问" && /食物|food|火锅/.test(analysis.semantic.object) && /承接|回应/.test(analysis.semantic.context);
+  return analysis.semantic?.action === "分享并提问" && analysis.semantic.topics.includes("food") && analysis.semantic.object !== "当前交流" && /承接|回应/.test(analysis.semantic.context);
 });
 
 test("同一句话面对不同角色会得到不同匹配分", () => {
