@@ -7,27 +7,34 @@ def repoRoot = projectDir.parentFile.parentFile
 def generatedOfflineAssetsDir = layout.buildDirectory.dir('generated/offlineAssets')
 def sourceIndex = new File(repoRoot, 'index.html')
 def sourceCss = new File(repoRoot, 'style.css')
+def sourceOverlay = new File(repoRoot, 'fragments/app-v219-overlay.txt')
 def sourceFragments = (1..16).collect { number ->
     new File(repoRoot, String.format('fragments/app-%02d.txt', number))
 }
 
 tasks.register('generateOfflineHtml') {
-    inputs.files([sourceIndex, sourceCss] + sourceFragments)
+    inputs.files([sourceIndex, sourceCss, sourceOverlay] + sourceFragments)
     outputs.file(generatedOfflineAssetsDir.map { directory -> directory.file('index.html') })
 
     doLast {
-        def missing = ([sourceIndex, sourceCss] + sourceFragments).findAll { file -> !file.isFile() }
+        def missing = ([sourceIndex, sourceCss, sourceOverlay] + sourceFragments).findAll { file -> !file.isFile() }
         if (!missing.isEmpty()) {
             throw new GradleException('缺少离线网页源码：' + missing.collect { it.path }.join(', '))
         }
 
         def index = sourceIndex.getText('UTF-8')
         def css = sourceCss.getText('UTF-8')
-        def app = sourceFragments.collect { file -> file.getText('UTF-8') }.join('')
+        def appParts = sourceFragments.collect { file -> file.getText('UTF-8') }
+        def overlay = sourceOverlay.getText('UTF-8')
+        def exportMarker = '  if (typeof globalThis !== "undefined") {'
 
-        // 网页端历史数据键保持不变，只统一当前程序版本显示。
-        app = app.replace('const APP_VERSION = "2.0";', 'const APP_VERSION = "2.18";')
-        app = app.replace('</script>', '<\\/script>')
+        appParts[0] = appParts[0].replace('const APP_VERSION = "2.0";', 'const APP_VERSION = "2.19";')
+        appParts[15] = appParts[15].replace('APP_VERSION: "2.18"', 'APP_VERSION: "2.19"')
+        if (!appParts[15].contains(exportMarker) || !overlay.contains(exportMarker)) {
+            throw new GradleException('V2.19兼容层插入标记缺失')
+        }
+        appParts[15] = appParts[15].replaceFirst(Pattern.quote(exportMarker), Matcher.quoteReplacement(overlay))
+        def app = appParts.join('').replace('</script>', '<\\/script>')
 
         index = Pattern.compile('(?s)\\s*<link rel="manifest"[^>]*>\\s*')
             .matcher(index).replaceFirst('\n')
@@ -41,15 +48,17 @@ tasks.register('generateOfflineHtml') {
         def required = [
             '<!doctype html',
             '心动训练营',
-            'APP_VERSION = "2.18"',
-            'V2.18 离线正式版',
+            'APP_VERSION = "2.19"',
+            'V2.19 真人感训练版',
+            'ROLE_PERSONALITIES_V219',
+            'HIDDEN_GOALS_V219',
             '</html>'
         ]
-        if (index.getBytes('UTF-8').length < 200000 || !required.every { marker -> index.contains(marker) }) {
-            throw new GradleException('Android 离线页面生成失败或内容不完整')
+        if (index.getBytes('UTF-8').length < 215000 || !required.every { marker -> index.contains(marker) }) {
+            throw new GradleException('Android V2.19离线页面生成失败或内容不完整')
         }
-        if (index.contains('app.js?v=218') || index.contains('style.css?v=218')) {
-            throw new GradleException('Android 离线页面仍引用外部网页资源')
+        if (index.contains('app.js?v=219') || index.contains('style.css?v=219')) {
+            throw new GradleException('Android离线页面仍引用外部网页资源')
         }
 
         def outputDir = generatedOfflineAssetsDir.get().asFile
@@ -58,7 +67,7 @@ tasks.register('generateOfflineHtml') {
         }
         def output = new File(outputDir, 'index.html')
         output.setText(index, 'UTF-8')
-        println "Android offline HTML generated: ${output.length()} bytes"
+        println "Android V2.19 offline HTML generated: ${output.length()} bytes"
     }
 }
 
@@ -70,8 +79,8 @@ android {
         applicationId 'com.bianzhifeng.hearttraining'
         minSdk 24
         targetSdk 35
-        versionCode 218
-        versionName '2.1.8'
+        versionCode 219
+        versionName '2.1.9'
     }
 
     sourceSets {
