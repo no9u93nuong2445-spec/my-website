@@ -48,11 +48,25 @@
     if (f.intimacy) topics.add("intimacy");
     if (f.respectRejection || f.interestSignal || f.mindReading) topics.add("relationship");
     const topicList = [...topics];
-    let action = f.respectRejection ? "尊重拒绝" : f.ending ? "自然收尾" : f.invite ? "发起邀约" : f.empathy ? "回应情绪" : f.apology ? "承担责任" : f.conversationRepair ? "重新找话题" : f.humor ? "轻松调侃" : f.compliment ? "表达欣赏" : f.share && a.questionCount ? "分享并提问" : f.share ? "自我分享" : a.questionCount ? "提问了解" : f.greeting ? "礼貌开场" : "表达观点";
+    const actions = [];
+    const addAction = label => { if (label && !actions.includes(label)) actions.push(label); };
+    if (f.respectRejection) addAction("尊重拒绝");
+    if (f.ending) addAction("自然收尾");
+    if (f.invite) addAction("发起邀约");
+    if (f.empathy) addAction("回应情绪");
+    if (f.apology) addAction("承担责任");
+    if (f.conversationRepair) addAction("重新找话题");
+    if (f.humor) addAction("轻松调侃");
+    if (f.compliment) addAction("表达欣赏");
+    if (f.share) addAction("自我分享");
+    if (a.questionCount > 0) addAction("提问了解");
+    if (f.greeting) addAction("礼貌开场");
+    if (!actions.length) addAction("表达观点");
+    const action = actions.join("＋");
     let object = topicList.length ? topicList.map(t => TOPIC_LABELS[t] || ({ relationship: "关系与边界", boundary: "个人边界", intimacy: "亲密推进", humor: "轻松幽默" }[t] || t)).join("、") : "当前交流";
     if (f.selfBoundary) object = "自己的时间与边界"; else if (f.respectRejection || f.interestSignal || f.intimacy) object = "关系与边界"; else if (f.empathy) object = "她的情绪与处境"; else if (f.invite) object = "共同活动安排"; else if (f.share && !topicList.length) object = "自己的经历与偏好";
     const context = a.relevant ? (a.context?.topicMatch?.length ? "承接当前或最近三轮话题" : "回应了她上一句话") : f.conversationRepair ? "主动重启对话" : "与当前上下文连接较弱";
-    return { action, object, context, topics: topicList };
+    return { action, actions, object, context, topics: topicList };
   }
 
   function ensureV219Styles() {
