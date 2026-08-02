@@ -1,5 +1,5 @@
-const CACHE_NAME = "heart-training-offline-v2-19-direct-v219";
-const ASSETS = ["./", "./index.html?v=219", "./style.css?v=219", "./app.js?v=219", "./manifest.json?v=219", "./assets/icon-192.png?v=219"];
+const CACHE_NAME = "heart-training-offline-v2-20-direct-v220";
+const ASSETS = ["./", "./index.html?v=220", "./style.css?v=220", "./app.js?v=220", "./manifest.json?v=220", "./assets/icon-192.png?v=220"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
@@ -17,5 +17,5 @@ self.addEventListener("fetch", event => {
     const copy = response.clone();
     caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     return response;
-  }).catch(() => caches.match("./index.html?v=219"))));
+  }).catch(() => caches.match("./index.html?v=220"))));
 });
