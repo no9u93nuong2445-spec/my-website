@@ -1,0 +1,289 @@
+
+  // V2.20 真实场景训练层：将常见关系卡点做成会随用户选择推进的连续场景。
+  const REAL_SCENARIOS_V220 = {
+    dryHaha: {
+      id: "dryHaha", icon: "😅", title: "她只回了‘哈哈’", subtitle: "别审问、别硬撩，用一点自己的内容重新创造话题。",
+      characterId: "chenke", tags: ["短回复", "重新起话题", "不查户口"],
+      config: { characterId: "chenke", channel: "wechat", stage: "few", enthusiasm: "cold", mood: "relaxed", difficulty: "standard", goal: "balanced" },
+      intro: "你们已经聊过几次。你刚分享了一件小事，她只回了一句‘哈哈’。这不一定是拒绝，也不是要求你立刻救场。",
+      opening: "哈哈。", objective: "不连续追问，不把‘哈哈’脑补成暧昧或冷暴力；用回应＋一点自己自然创造新入口。",
+      minTurns: 2, maxTurns: 5, targetAvg: 64, metrics: { comfort: -2, interest: -4, pressure: 3 },
+      hints: ["不要追问‘你笑什么’或一次丢出多个问题。", "可以补充一个与刚才内容有关的小细节，再只留一个轻问题。"],
+      references: ["示例结构：看来这个确实有点离谱，我后来自己都笑了。你最近有没有遇到这种小事？"]
+    },
+    cooling: {
+      id: "cooling", icon: "🧊", title: "回复突然变慢", subtitle: "识别现实节奏，停止催回复，把主动权还给对方。",
+      characterId: "zhouning", tags: ["回复变慢", "降低压力", "观察行动"],
+      config: { characterId: "zhouning", channel: "wechat", stage: "few", enthusiasm: "cold", mood: "busy", difficulty: "standard", goal: "boundary" },
+      intro: "她前几天回复比较快，最近明显变慢，并主动说明工作忙。你无法仅凭回复速度判断她的内心。",
+      opening: "最近项目有点忙，消息可能不会回得那么及时。", objective: "不质问、不连发，明确理解她的节奏，并决定是否自然收尾。",
+      minTurns: 2, maxTurns: 5, targetAvg: 66, metrics: { comfort: -4, interest: -5, pressure: 8 },
+      hints: ["她已经说明现实原因，不需要继续审问。", "回应事实、给空间，然后观察之后的持续行动。"],
+      references: ["示例方向：明白，你先处理工作，不用赶着回。忙完有空再聊。"]
+    },
+    inviteRejected: {
+      id: "inviteRejected", icon: "📅", title: "邀约被婉拒", subtitle: "不要立刻换三个时间继续追，先接受这次拒绝。",
+      characterId: "suyan", tags: ["邀约拒绝", "不换说法追问", "体面收尾"],
+      config: { characterId: "suyan", channel: "wechat", stage: "few", enthusiasm: "cold", mood: "cautious", difficulty: "advanced", goal: "boundary" },
+      intro: "你提出周末见面，她没有给替代时间，而是明确表示最近不想约。重点不是寻找能让她答应的新说法。",
+      opening: "这周我就不去了，最近不太想约。", objective: "明确接受拒绝，不猜测隐藏原因，不立即更换时间继续邀约，并自然结束。",
+      minTurns: 2, maxTurns: 4, targetAvg: 70, metrics: { comfort: -7, interest: -7, pressure: 12 },
+      hints: ["‘那下周呢’仍然是在绕过这次拒绝。", "真正合格的回复需要接受，而不是表面说没关系后继续争取。"],
+      references: ["示例方向：明白了，我尊重你的决定，不勉强。那先这样，之后正常相处就好。"]
+    },
+    afterDate: {
+      id: "afterDate", icon: "🌙", title: "第一次见面后", subtitle: "表达真实感受，但别立刻逼问评价、关系或下一次见面。",
+      characterId: "linxia", tags: ["约会后", "具体反馈", "不急着定义"],
+      config: { characterId: "linxia", channel: "wechat", stage: "familiar", enthusiasm: "normal", mood: "relaxed", difficulty: "standard", goal: "naturalClose" },
+      intro: "第一次线下见面结束，她主动报平安。你们相处还算轻松，但一次见面不足以证明关系结果。",
+      opening: "我到家了，今天谢谢你。", objective: "回应安全到家，表达一个具体而不过度的真实感受，不逼问‘你觉得我怎么样’，并自然收尾。",
+      minTurns: 2, maxTurns: 5, targetAvg: 68, metrics: { comfort: 4, interest: 2, pressure: 2 },
+      hints: ["可以说具体哪里相处舒服，不要直接要求对方评价你。", "第一次见面后不必马上确认关系或强行约下一次。"],
+      references: ["示例方向：到家就好。今天聊得挺轻松，路上那个小插曲我现在想起来还想笑。你也早点休息。"]
+    },
+    relationshipCooling: {
+      id: "relationshipCooling", icon: "↘️", title: "关系明确降温", subtitle: "听懂‘减少联系’，既尊重她，也保留自己的边界。",
+      characterId: "xuyue", tags: ["减少联系", "接受现实", "不自我牺牲"],
+      config: { characterId: "xuyue", channel: "wechat", stage: "familiar", enthusiasm: "cold", mood: "cautious", difficulty: "advanced", goal: "boundary" },
+      intro: "她没有含糊暗示，而是明确说聊天让她觉得累，希望减少联系。此时继续证明、保证或追问都会增加压力。",
+      opening: "我觉得我们最近聊天有点累，想先减少联系。", objective: "承认她的明确表达，停止推进，同时清楚照顾自己的时间与投入，不等待一个虚假的承诺。",
+      minTurns: 2, maxTurns: 4, targetAvg: 72, metrics: { comfort: -9, interest: -10, pressure: 18 },
+      hints: ["不要把她的边界解释成考验、欲擒故纵或等你证明。", "尊重对方并不等于无限等待；你也可以把注意力放回自己的生活。"],
+      references: ["示例方向：我明白，也尊重你的想法。我会减少联系，把注意力放回自己的安排，不继续给你压力。"]
+    }
+  };
+
+  if (typeof ISSUE_LABELS !== "undefined") ISSUE_LABELS.scenarioPace = "场景节奏不合适";
+
+  function getRealScenarioV220(currentSession = session) {
+    const id = currentSession?.realScenario?.id;
+    return id ? REAL_SCENARIOS_V220[id] || null : null;
+  }
+
+  function buildRealScenarioLevelV220(scene, char) {
+    const config = normalizeFreeConfig(scene.config);
+    return {
+      id: `real-${scene.id}`, chapter: 0, no: "实战", title: scene.title, character: char.id,
+      intro: scene.intro, objective: scene.objective, opening: scene.opening,
+      minTurns: scene.minTurns, maxTurns: scene.maxTurns, targetAvg: scene.targetAvg,
+      required: {}, hints: scene.hints, references: scene.references,
+      replies: {
+        positive: ["这样说我比较容易接受。", "嗯，谢谢你把话说清楚。"],
+        neutral: ["嗯。", "我知道了。"],
+        negative: ["我不太想继续解释。", "这样会让我有压力。"],
+        boundary: ["我已经把想法说清楚了，先到这里吧。"]
+      },
+      freeConfig: config
+    };
+  }
+
+  function startRealScenarioV220(sceneId) {
+    const scene = REAL_SCENARIOS_V220[sceneId];
+    if (!scene) return false;
+    const char = CHARACTERS[scene.characterId];
+    const level = buildRealScenarioLevelV220(scene, char);
+    const config = normalizeFreeConfig(scene.config);
+    state.game.freePractice.lastConfig = { ...config };
+    clearActiveSession();
+    saveState();
+    session = createSession(level, char, true, config);
+    session.realScenario = { id: scene.id, rewarded: false, safeTurns: 0, boundaryTurns: 0 };
+    session.metrics.comfort = clamp(session.metrics.comfort + scene.metrics.comfort, 8, 90);
+    session.metrics.interest = clamp(session.metrics.interest + scene.metrics.interest, 4, char.maxInterest || 90);
+    session.metrics.pressure = clamp(session.metrics.pressure + scene.metrics.pressure, 0, 88);
+    persistActiveSession(session);
+    renderTraining();
+    return true;
+  }
+
+  function getRealScenarioStatusV220(currentSession) {
+    const scene = getRealScenarioV220(currentSession);
+    if (!scene) return null;
+    const analyses = currentSession.analyses || [];
+    const has = key => analyses.some(a => a.flags?.[key]);
+    const hasIssue = key => analyses.some(a => a.issues?.some(i => i.key === key));
+    const safe = !has("pressure") && !has("insult") && !has("sexual") && !has("mindReading") && !has("scorekeeping");
+    let met = false;
+    let progress = "";
+    if (scene.id === "dryHaha") {
+      met = currentSession.turn >= 2 && currentSession.counters.share >= 1 && currentSession.counters.relevant >= 1 && !hasIssue("interrogation") && safe;
+      progress = `交流 ${currentSession.turn}/2轮 · 分享 ${currentSession.counters.share}/1 · 承接 ${currentSession.counters.relevant}/1 · ${hasIssue("interrogation") ? "出现密集提问" : "提问节奏正常"}`;
+    } else if (scene.id === "cooling") {
+      const space = currentSession.counters.acceptUncertainty + currentSession.counters.ending;
+      met = currentSession.turn >= 2 && space >= 1 && safe;
+      progress = `交流 ${currentSession.turn}/2轮 · 给空间/收尾 ${space}/1 · ${has("pressure") ? "出现催促" : "没有催回复"}`;
+    } else if (scene.id === "inviteRejected") {
+      met = currentSession.turn >= 2 && currentSession.counters.respectRejection >= 1 && currentSession.counters.ending >= 1 && safe;
+      progress = `接受拒绝 ${currentSession.counters.respectRejection}/1 · 自然收尾 ${currentSession.counters.ending}/1 · ${has("invite") ? "仍有继续邀约" : "没有绕过拒绝"}`;
+    } else if (scene.id === "afterDate") {
+      const warm = currentSession.counters.specificCompliment + currentSession.counters.share + currentSession.counters.ending;
+      met = currentSession.turn >= 2 && currentSession.counters.relevant >= 1 && warm >= 2 && !has("intimacy") && !has("mindReading") && safe;
+      progress = `交流 ${currentSession.turn}/2轮 · 具体回应/分享/收尾 ${warm}/2 · ${has("intimacy") ? "推进过快" : "没有逼定义关系"}`;
+    } else if (scene.id === "relationshipCooling") {
+      const selfCare = currentSession.counters.selfBoundary + currentSession.counters.ending;
+      met = currentSession.turn >= 2 && currentSession.counters.respectRejection >= 1 && selfCare >= 1 && safe;
+      progress = `接受边界 ${currentSession.counters.respectRejection}/1 · 自我边界/收尾 ${selfCare}/1 · ${safe ? "没有继续施压" : "仍存在推进或脑补"}`;
+    }
+    return { id: scene.id, title: scene.title, met, progress, objective: scene.objective };
+  }
+
+  function addScenarioIssueV220(analysis, text) {
+    if (!analysis.issues.some(item => item.key === "scenarioPace")) analysis.issues.push({ key: "scenarioPace", text });
+  }
+
+  function applyScenarioScoreV220(analysis, currentSession) {
+    const scene = getRealScenarioV220(currentSession);
+    if (!scene) return analysis;
+    const f = analysis.flags;
+    let delta = 0;
+    const praise = text => { if (!analysis.strengths.includes(text)) analysis.strengths.push(text); };
+    if (scene.id === "dryHaha") {
+      if ((f.share || f.conversationRepair || analysis.relevant) && analysis.questionCount <= 1) { delta += 7; praise("没有因为短回复慌张，而是提供了新的可聊内容。"); }
+      if (analysis.questionCount >= 2) { delta -= 10; addScenarioIssueV220(analysis, "面对短回复连续提问，会让救场变成新的压力。"); }
+      if (f.pressure || f.intimacy || f.mindReading) { delta -= 14; addScenarioIssueV220(analysis, "不能把一句‘哈哈’解释成喜欢、敷衍或要求对方解释。"); }
+    } else if (scene.id === "cooling") {
+      if (f.acceptUncertainty || f.ending) { delta += 10; praise("接受了她当前的回复节奏，没有要求即时证明态度。"); }
+      if (f.pressure || f.mindReading) { delta -= 18; addScenarioIssueV220(analysis, "她已经说明忙碌，再追问回复速度只会增加压力。"); }
+      if (analysis.questionCount >= 2) delta -= 6;
+    } else if (scene.id === "inviteRejected") {
+      if (f.respectRejection) { delta += 18; praise("明确接受了这次拒绝，没有换一种说法继续争取。"); }
+      if (f.ending) delta += 7;
+      if (f.invite || f.intimacy || f.mindReading) { delta -= 20; addScenarioIssueV220(analysis, "继续换时间、猜原因或表达更重感情，都在绕过她的拒绝。"); }
+    } else if (scene.id === "afterDate") {
+      if (f.specificCompliment) { delta += 8; praise("把好感落到了具体相处细节，没有空泛吹捧。"); }
+      if (f.share || analysis.relevant || f.ending) delta += 5;
+      if (currentSession.turn <= 1 && (f.interestSignal || f.intimacy || f.invite || f.mindReading)) { delta -= 12; addScenarioIssueV220(analysis, "第一次见面后立刻确认关系、评价或下一次安排，节奏偏快。"); }
+      if (analysis.questionCount >= 2) delta -= 5;
+    } else if (scene.id === "relationshipCooling") {
+      if (f.respectRejection) { delta += 16; praise("听懂了‘减少联系’的明确边界，没有继续证明自己。"); }
+      if (f.selfBoundary) { delta += 10; praise("尊重对方的同时，也照顾了自己的时间和投入。"); }
+      if (f.ending) delta += 7;
+      if (f.pressure || f.invite || f.mindReading || f.scorekeeping || f.intimacy) { delta -= 22; addScenarioIssueV220(analysis, "关系已经明确降温，继续追问、证明或索取回报会越过边界。"); }
+    }
+    analysis.score = clamp(Math.round(analysis.score + delta), 0, 100);
+    analysis.scenario = { id: scene.id, title: scene.title, delta };
+    if (delta > 0 && !analysis.intents.includes("处理真实场景")) analysis.intents.push("处理真实场景");
+    return analysis;
+  }
+
+  const analyzeMessageV219ScenarioBase = analyzeMessage;
+  analyzeMessage = function analyzeMessageV220(text, currentSession) {
+    return applyScenarioScoreV220(analyzeMessageV219ScenarioBase(text, currentSession), currentSession);
+  };
+
+  const updateSessionMetricsV219ScenarioBase = updateSessionMetrics;
+  updateSessionMetrics = function updateSessionMetricsV220(analysis, currentSession = session) {
+    const result = updateSessionMetricsV219ScenarioBase(analysis, currentSession);
+    if (currentSession?.realScenario) {
+      if (analysis.score >= 65 && !analysis.flags.pressure && !analysis.flags.insult && !analysis.flags.sexual) currentSession.realScenario.safeTurns += 1;
+      if (analysis.flags.respectRejection || analysis.flags.ending || analysis.flags.acceptUncertainty || analysis.flags.selfBoundary) currentSession.realScenario.boundaryTurns += 1;
+    }
+    return result;
+  };
+
+  const generateResponseV219ScenarioBase = generateResponse;
+  generateResponse = function generateResponseV220(analysis, currentSession) {
+    const base = generateResponseV219ScenarioBase(analysis, currentSession);
+    const scene = getRealScenarioV220(currentSession);
+    if (!scene) return base;
+    const f = analysis.flags;
+    let text = base.text;
+    let reason = "她会根据你是否尊重当前场景中的事实和边界继续回应。";
+    if (scene.id === "dryHaha") {
+      if (f.pressure || f.mindReading || analysis.questionCount >= 2) { text = "你不用一次问这么多，我刚才就是顺手回了一下。"; reason = "你把短回复变成了追问压力，她会收紧交流。"; }
+      else if (f.share || f.conversationRepair || analysis.relevant) { text = currentSession.turn >= 2 ? "这个我还能接，你继续说。" : "哈哈，这个确实有点画面感。你后来怎么处理的？"; reason = "你没有审问她，而是给出了新的内容，她愿意重新投入一点。"; }
+      else { text = "哈哈，是有点。"; reason = "这句话仍缺少新内容，她只会保持短回复。"; }
+    } else if (scene.id === "cooling") {
+      if (f.pressure || f.mindReading) { text = "我已经说最近比较忙了，不想因为回复速度一直解释。"; reason = "她已说明现实原因，继续催促会触发边界。"; }
+      else if (f.acceptUncertainty || f.ending) { text = "好，谢谢你理解。我有空会正常回。"; reason = "你接受了当前节奏，她不需要继续防御。"; }
+      else if (f.share || analysis.relevant) { text = "嗯，我最近确实事情比较多，状态稳定点再聊。"; reason = "你接住了现实情况，但她仍会保持较低投入。"; }
+      else { text = "嗯，最近就是有点忙。"; }
+    } else if (scene.id === "inviteRejected") {
+      if (f.invite || f.mindReading || f.intimacy) { text = "我这次不是换个时间的问题，最近确实不想约。"; reason = "继续换时间或猜原因，等于绕过她刚才的拒绝。"; }
+      else if (f.respectRejection) { text = "谢谢你理解，先按现在的节奏就好。"; reason = "你明确接受拒绝，她不需要再次解释。"; }
+      else if (f.ending) { text = "好，那先这样。"; reason = "你停止推进，场景可以自然结束。"; }
+      else { text = "嗯，我最近确实不太想安排见面。"; }
+    } else if (scene.id === "afterDate") {
+      if (currentSession.turn <= 2 && (f.intimacy || f.interestSignal || f.invite || f.mindReading)) { text = "今天相处还可以，不过先不用这么快定下一次。"; reason = "一次见面后推进过快，她会主动放慢节奏。"; }
+      else if (f.specificCompliment || f.share || analysis.relevant) { text = "我也觉得今天挺轻松的，路上那段还蛮好笑。"; reason = "你回应了具体经历，她可以自然确认这次相处感受。"; }
+      else if (f.ending) { text = "好，你也早点休息。"; reason = "你没有趁热追问，收尾比较轻松。"; }
+      else { text = "嗯，我已经到家了。"; }
+    } else if (scene.id === "relationshipCooling") {
+      if (f.pressure || f.invite || f.mindReading || f.scorekeeping || f.intimacy) { text = "我说想减少联系，不是让你继续证明或追问。"; reason = "她的边界被绕过，会再次明确降温。"; }
+      else if (f.respectRejection || f.selfBoundary) { text = "谢谢你理解。我们都先把注意力放回自己的生活吧。"; reason = "你接受现实并照顾自己，双方不需要继续拉扯。"; }
+      else if (f.ending) { text = "好，先这样。"; reason = "你停止推进，边界得到尊重。"; }
+      else { text = "我现在确实需要一点距离。"; }
+    }
+    return { ...base, text, reason, state: getVisibleCharacterState(currentSession), scenario: scene.id };
+  };
+
+  const evaluateSessionV219ScenarioBase = evaluateSession;
+  evaluateSession = function evaluateSessionV220(currentSession, forceFinish = false) {
+    const status = getRealScenarioStatusV220(currentSession);
+    if (!status) return evaluateSessionV219ScenarioBase(currentSession, forceFinish);
+    const analyses = currentSession.analyses || [];
+    const avg = analyses.length ? Math.round(analyses.reduce((sum, item) => sum + item.score, 0) / analyses.length) : 0;
+    const severe = analyses.some(item => item.flags.insult || item.flags.sexual) || currentSession.metrics.pressure >= 92;
+    const target = currentSession.level.targetAvg + (state.settings.strictMode ? 5 : 0);
+    const enough = currentSession.turn >= currentSession.level.minTurns;
+    const passed = !severe && status.met && enough && avg >= target;
+    if (severe) return { finished: true, passed: false, avg, goalMet: false, scenarioStatus: status, reason: "场景中出现明显越界或对方压力过高。" };
+    if (passed) return { finished: true, passed: true, avg, goalMet: true, scenarioStatus: status, reason: `已完成真实场景“${status.title}”。` };
+    if (forceFinish || currentSession.turn >= currentSession.level.maxTurns) return { finished: true, passed: false, avg, goalMet: status.met, scenarioStatus: status, reason: status.met ? `关键动作已完成，但平均分尚未达到${target}分。` : `尚未完成真实场景“${status.title}”的关键动作。` };
+    return { finished: false, passed: false, avg, goalMet: status.met, scenarioStatus: status, reason: "" };
+  };
+
+  function ensureV220Styles() {
+    if (document.getElementById("v220Styles")) return;
+    const style = document.createElement("style");
+    style.id = "v220Styles";
+    style.textContent = `.v220-scenes{margin-bottom:14px}.v220-scene-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}.v220-scene-card{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line,#ddd);border-radius:16px;background:var(--surface,#fff)}.v220-scene-icon{font-size:28px}.v220-scene-card h3{margin:0}.v220-scene-card p{margin:0;line-height:1.5}.v220-scene-card button{margin-top:auto}.v220-scenario-banner,.v220-scenario-review{margin-top:12px;padding:12px;border-radius:14px;background:rgba(14,165,233,.1);line-height:1.55}.v220-scenario-progress{margin-top:10px;padding:10px;border-radius:12px;background:rgba(14,165,233,.08);font-size:13px}.v220-scenario-review.passed{background:rgba(34,197,94,.12)}.v220-scenario-review.failed{background:rgba(245,158,11,.12)}body.immersive-mode .v220-scenario-progress{display:none!important}`;
+    document.head?.appendChild(style);
+  }
+
+  const renderFreePracticeV219ScenarioBase = renderFreePractice;
+  renderFreePractice = function renderFreePracticeV220() {
+    ensureV220Styles();
+    renderFreePracticeV219ScenarioBase();
+    const cards = Object.values(REAL_SCENARIOS_V220).map(scene => `<article class="v220-scene-card"><span class="v220-scene-icon">${scene.icon}</span><h3>${escapeHtml(scene.title)}</h3><p>${escapeHtml(scene.subtitle)}</p><div class="tag-row">${scene.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div><button class="secondary-btn" type="button" data-v220-scene="${scene.id}">进入场景</button></article>`).join("");
+    mainView.insertAdjacentHTML("afterbegin", `<section class="card v220-scenes"><div class="section-title"><div><span class="version-chip">V2.20</span><h2>真实关系场景</h2><p class="small">场景会根据你的回复继续推进，不是只有一轮的标准答案题。</p></div><span>${Object.keys(REAL_SCENARIOS_V220).length}个场景</span></div><div class="v220-scene-grid">${cards}</div></section>`);
+    mainView.querySelectorAll("[data-v220-scene]").forEach(button => button.addEventListener("click", () => startRealScenarioV220(button.dataset.v220Scene)));
+  };
+
+  const renderTrainingV219ScenarioBase = renderTraining;
+  renderTraining = function renderTrainingV220() {
+    ensureV220Styles();
+    renderTrainingV219ScenarioBase();
+    const scene = getRealScenarioV220(session);
+    if (!scene) return;
+    const status = getRealScenarioStatusV220(session);
+    const meta = document.querySelector?.(".training-intro-card .character-meta");
+    if (meta) meta.insertAdjacentHTML("beforeend", `<div class="v220-scenario-banner"><strong>${scene.icon} 真实场景：${escapeHtml(scene.title)}</strong><br>${escapeHtml(scene.subtitle)}</div>`);
+    const panel = document.querySelector?.(".coach-panel");
+    if (panel && status) panel.insertAdjacentHTML("afterbegin", `<div class="v220-scenario-progress"><strong>场景关键动作</strong><br>${escapeHtml(status.progress)}</div>`);
+  };
+
+  const finalizeSessionV219ScenarioBase = finalizeSession;
+  finalizeSession = function finalizeSessionV220(result) {
+    const completed = session;
+    const status = getRealScenarioStatusV220(completed);
+    if (status?.met && result.passed && completed.realScenario && !completed.realScenario.rewarded) {
+      completed.realScenario.rewarded = true;
+      addXp(12);
+      completed.sessionXp += 12;
+    }
+    finalizeSessionV219ScenarioBase(result);
+    if (!status) return;
+    const unsafeCount = (completed.analyses || []).filter(a => a.flags.pressure || a.flags.mindReading || a.flags.invite && status.id !== "afterDate").length;
+    resultContent.innerHTML += `<div class="v220-scenario-review ${result.passed ? "passed" : "failed"}"><strong>${result.passed ? "真实场景处理完成 · +12 XP" : "真实场景仍需练习"}：${escapeHtml(status.title)}</strong><p>${escapeHtml(status.objective)}</p><span class="small">${escapeHtml(status.progress)} · 高风险推进 ${unsafeCount} 次</span></div>`;
+  };
+
+  if (typeof globalThis !== "undefined") globalThis.__heartTrainingV220 = {
+    REAL_SCENARIOS_V220,
+    startRealScenarioV220,
+    getRealScenarioStatusV220,
+    applyScenarioScoreV220,
+    buildRealScenarioLevelV220
+  };
+
+  if (typeof globalThis !== "undefined") {
