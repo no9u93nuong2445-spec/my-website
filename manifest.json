@@ -1,8 +1,8 @@
 {
-  "name": "心动训练营 · 真人感训练版 V2.19",
+  "name": "心动训练营 · 真实场景训练版 V2.20",
   "short_name": "心动训练营",
-  "description": "完全离线的恋爱沟通训练工具，包含6名独立性格角色、45关实战、教练与沉浸模式、隐藏挑战和完整本地备份",
-  "start_url": "./index.html?v=219",
+  "description": "完全离线的恋爱沟通训练工具，包含6名独立性格角色、45关实战、5个真实关系场景、教练与沉浸模式和完整本地备份",
+  "start_url": "./index.html?v=220",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f7f7fb",
@@ -10,7 +10,7 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "assets/icon-192.png?v=219",
+      "src": "assets/icon-192.png?v=220",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
