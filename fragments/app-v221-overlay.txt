@@ -1,0 +1,246 @@
+
+  // V2.21 整局回放层：保存逐句表现、关键转折、边界信号与替代表达。
+  const REPLAY_VERSION_V221 = 1;
+
+  const REPLAY_ISSUE_COPY_V221 = {
+    pressure: { label: "催促与施压", alternative: "明白，你先忙，不用赶着回，有空再聊。", next: "删掉对回复速度的质问，把主动权还给对方。" },
+    interrogation: { label: "问题过密", alternative: "听起来挺有意思的，我之前也遇到过类似情况。你更在意哪一部分？", next: "一次只留一个问题，并补充一点自己的内容。" },
+    noShare: { label: "只问不分享", alternative: "听起来挺有意思的，我最近也遇到过类似情况。你后来怎么处理的？", next: "使用‘回应＋一点自己＋一个问题’的结构。" },
+    topicJump: { label: "突然换话题", alternative: "我听懂你刚才说的了，确实不容易。我这边也有一点类似经历。", next: "先回应上一句话，再自然延伸。" },
+    genericOpener: { label: "开场太泛", alternative: "看到你刚才提到的那个细节，我还挺有共鸣的。你平时也经常这样吗？", next: "从资料或当前场景抓一个具体点。" },
+    coldReply: { label: "回复信息量太少", alternative: "这个确实有点好笑，我后来想起来还会笑。", next: "至少补充一个真实反应或小细节。" },
+    mindReading: { label: "替对方下结论", alternative: "我会按你明确说的理解，不替你猜。我们先按舒服的节奏相处。", next: "以对方明确表达和持续行动为准。" },
+    overIntimacy: { label: "关系推进过快", alternative: "刚才那个话题挺有意思的，我想多听你说一点。", next: "降低称呼和关系强度，回到具体交流。" },
+    disrespect: { label: "明显越界", alternative: "刚才那句话不合适，抱歉。我尊重你的边界，先到这里。", next: "停止推进，先修复尊重和安全感。" },
+    adviceRush: { label: "过早给建议", alternative: "听起来确实挺累的。你现在更想吐槽一下，还是想一起想办法？", next: "先接情绪，再确认对方是否需要建议。" },
+    vagueInvite: { label: "邀约不清楚", alternative: "这周六下午要不要一起去喝杯咖啡？你不方便也没关系。", next: "说清活动、时间，并给对方拒绝空间。" },
+    overExplain: { label: "解释过多", alternative: "我的核心意思是：我理解你的安排，也会尊重你的节奏。", next: "保留核心意思，删掉防御性解释。" },
+    tooLong: { label: "单条太长", alternative: "我理解你的意思，也尊重你的安排。之后按舒服的节奏聊就好。", next: "一条消息只表达一个重点。" },
+    tooShort: { label: "内容太短", alternative: "我听懂了，也有一点类似经历。你更想聊哪部分？", next: "补充一个真实反应，让对方有内容可接。" },
+    scorekeeping: { label: "把付出变成债务", alternative: "过去的帮助是我自愿的，不需要你用关系回报。", next: "把帮助与关系结果彻底分开。" },
+    gamePlaying: { label: "试探或操控", alternative: "我不想靠冷处理测试你，有事我会直接说明。", next: "用真实表达代替测试和故意冷淡。" },
+    selfDegrade: { label: "自我贬低", alternative: "我会尊重你的选择，也把注意力放回自己的生活。", next: "不靠贬低自己换取安慰或回应。" },
+    scenarioPace: { label: "场景节奏不合适", alternative: "我听懂你的意思，会尊重现在的节奏，不继续给你压力。", next: "按场景事实行动，不绕过拒绝或降温信号。" }
+  };
+
+  function getSceneAlternativeV221(completed) {
+    const sceneId = completed?.realScenario?.id;
+    const map = {
+      dryHaha: "看来这件事确实有点离谱，我后来自己都笑了。你最近有没有类似小事？",
+      cooling: "明白，你先忙，不用赶着回，有空再聊。",
+      inviteRejected: "明白，我尊重你的决定，不勉强。那先这样。",
+      afterDate: "到家就好，今天聊得挺轻松。你也早点休息。",
+      relationshipCooling: "我明白，也尊重你的想法。我会减少联系，把注意力放回自己的安排。"
+    };
+    return map[sceneId] || "";
+  }
+
+  function getPrimaryIssueV221(analysis) {
+    const issues = analysis?.issues || [];
+    const priority = ["disrespect","pressure","mindReading","scorekeeping","gamePlaying","overIntimacy","interrogation","scenarioPace","adviceRush","noShare","topicJump","genericOpener","coldReply","vagueInvite","overExplain","tooLong","tooShort"];
+    return priority.find(key => issues.some(item => item.key === key)) || issues[0]?.key || null;
+  }
+
+  function getAlternativeV221(analysis, completed) {
+    const sceneAlternative = getSceneAlternativeV221(completed);
+    const issueKey = getPrimaryIssueV221(analysis);
+    if (issueKey && REPLAY_ISSUE_COPY_V221[issueKey]) return REPLAY_ISSUE_COPY_V221[issueKey].alternative;
+    if (analysis?.score >= 78) return "这句结构可以保留：回应具体内容、补充一点自己，并只留下一个容易回答的问题。";
+    if (sceneAlternative) return sceneAlternative;
+    if (analysis?.flags?.ending) return "你先忙，之后有空再聊。";
+    if (analysis?.flags?.empathy) return "听起来确实不容易。你现在更想让我听你说，还是一起想办法？";
+    return "先回应她刚才的具体内容，再补充一点自己的信息，最后只留一个问题。";
+  }
+
+  function getNextStepV221(analysis) {
+    const issueKey = getPrimaryIssueV221(analysis);
+    if (issueKey && REPLAY_ISSUE_COPY_V221[issueKey]) return REPLAY_ISSUE_COPY_V221[issueKey].next;
+    if (analysis?.score >= 78) return "保留这句的交换感，不需要为了显得厉害而继续加内容。";
+    return "下一句先接住对方，再决定是否分享或提问。";
+  }
+
+  function findTurningPointsV221(analyses) {
+    const points = new Map();
+    if (!analyses.length) return points;
+    const add = (index, reason) => {
+      if (index < 0 || index >= analyses.length) return;
+      const list = points.get(index) || [];
+      if (!list.includes(reason)) list.push(reason);
+      points.set(index, list);
+    };
+    const best = analyses.reduce((bestIndex, item, index, list) => item.score > list[bestIndex].score ? index : bestIndex, 0);
+    const worst = analyses.reduce((worstIndex, item, index, list) => item.score < list[worstIndex].score ? index : worstIndex, 0);
+    add(best, "本局最佳表达");
+    add(worst, "本局最低分句");
+    const boundary = analyses.findIndex(item => item.flags?.respectRejection || item.flags?.selfBoundary || item.flags?.ending || item.flags?.acceptUncertainty);
+    if (boundary >= 0) add(boundary, "出现关键边界处理");
+    const risk = analyses.findIndex(item => item.flags?.pressure || item.flags?.mindReading || item.flags?.scorekeeping || item.flags?.intimacy || item.score < 45);
+    if (risk >= 0) add(risk, "关系压力明显上升");
+    let upIndex = -1, upDelta = 0, downIndex = -1, downDelta = 0;
+    for (let index = 1; index < analyses.length; index += 1) {
+      const delta = analyses[index].score - analyses[index - 1].score;
+      if (delta > upDelta) { upDelta = delta; upIndex = index; }
+      if (delta < downDelta) { downDelta = delta; downIndex = index; }
+    }
+    if (upDelta >= 12) add(upIndex, `比上一句提升${upDelta}分`);
+    if (downDelta <= -12) add(downIndex, `比上一句下降${Math.abs(downDelta)}分`);
+    return points;
+  }
+
+  function buildSessionReplayV221(completed, result = {}) {
+    const analyses = completed?.analyses || [];
+    const myMessages = (completed?.messages || []).filter(item => item.from === "me");
+    const herMessages = (completed?.messages || []).filter(item => item.from === "her");
+    const turningPoints = findTurningPointsV221(analyses);
+    const issueCounts = {};
+    analyses.forEach(item => (item.issues || []).forEach(issue => { issueCounts[issue.key] = (issueCounts[issue.key] || 0) + 1; }));
+    const turns = analyses.map((analysis, index) => {
+      const issueKey = getPrimaryIssueV221(analysis);
+      const severe = analysis.flags?.pressure || analysis.flags?.insult || analysis.flags?.sexual || analysis.flags?.mindReading || analysis.flags?.scorekeeping;
+      const tone = severe || analysis.score < 55 ? "bad" : analysis.score < 78 ? "mid" : "good";
+      return {
+        index,
+        turn: index + 1,
+        userText: String(myMessages[index]?.text || analysis.text || "").slice(0, 240),
+        replyText: String(herMessages[index + 1]?.text || "").slice(0, 240),
+        score: Number(analysis.score || 0),
+        tone,
+        label: tone === "good" ? "自然有效" : tone === "mid" ? "可继续但能更好" : "需要调整",
+        keyReasons: turningPoints.get(index) || [],
+        issueKey,
+        issueLabel: issueKey ? (REPLAY_ISSUE_COPY_V221[issueKey]?.label || ISSUE_LABELS[issueKey] || issueKey) : null,
+        issueText: analysis.issues?.[0]?.text || null,
+        strength: analysis.strengths?.[0] || null,
+        semantic: analysis.semantic ? { action: analysis.semantic.action, object: analysis.semantic.object, context: analysis.semantic.context } : null,
+        alternative: getAlternativeV221(analysis, completed),
+        nextStep: getNextStepV221(analysis),
+        flags: {
+          questionCount: Number(analysis.questionCount || 0),
+          pressure: Boolean(analysis.flags?.pressure),
+          boundary: Boolean(analysis.flags?.respectRejection || analysis.flags?.selfBoundary || analysis.flags?.ending || analysis.flags?.acceptUncertainty)
+        }
+      };
+    });
+    const best = turns.length ? turns.reduce((a,b) => b.score > a.score ? b : a) : null;
+    const worst = turns.length ? turns.reduce((a,b) => b.score < a.score ? b : a) : null;
+    const topIssue = Object.entries(issueCounts).sort((a,b) => b[1]-a[1])[0] || null;
+    const ineffectiveQuestions = turns.filter(turn => turn.flags.questionCount >= 2 || ["interrogation","noShare"].includes(turn.issueKey)).length;
+    const boundarySignals = turns.filter(turn => turn.flags.boundary).length;
+    const nextFocus = topIssue
+      ? (REPLAY_ISSUE_COPY_V221[topIssue[0]]?.next || ISSUE_COACHING[topIssue[0]] || "下一局先修正出现次数最多的问题。")
+      : "下一局提高难度，继续保持回应、分享和留空间。";
+    return {
+      replayVersion: REPLAY_VERSION_V221,
+      createdAt: new Date().toISOString(),
+      title: completed?.level?.title || "训练复盘",
+      objective: completed?.level?.objective || "",
+      characterId: completed?.char?.id || "linxia",
+      characterName: completed?.char?.name || "角色",
+      personality: completed?.personality?.label || "独立性格",
+      trainingMode: completed?.trainingMode || "coach",
+      type: completed?.realScenario ? "scenario" : completed?.isMistake ? "mistake" : completed?.isFree ? "free" : "formal",
+      scenarioId: completed?.realScenario?.id || null,
+      passed: Boolean(result.passed),
+      avg: Number(result.avg || 0),
+      finalState: getVisibleCharacterState(completed),
+      bestTurn: best?.turn || 0,
+      worstTurn: worst?.turn || 0,
+      ineffectiveQuestions,
+      boundarySignals,
+      topIssue: topIssue ? { key: topIssue[0], count: topIssue[1], label: REPLAY_ISSUE_COPY_V221[topIssue[0]]?.label || ISSUE_LABELS[topIssue[0]] || topIssue[0] } : null,
+      nextFocus,
+      turns
+    };
+  }
+
+  function ensureV221Styles() {
+    if (document.getElementById("v221Styles")) return;
+    const style = document.createElement("style");
+    style.id = "v221Styles";
+    style.textContent = `.v221-summary{margin-top:14px;padding:14px;border-radius:16px;background:rgba(99,102,241,.1)}.v221-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.v221-summary-grid>div{padding:10px;border-radius:12px;background:rgba(255,255,255,.65);text-align:center}.v221-summary-grid strong{display:block;font-size:20px}.v221-replay-dialog{width:min(760px,calc(100vw - 24px));max-height:88vh;border:0;border-radius:20px;padding:0}.v221-replay-dialog::backdrop{background:rgba(20,16,35,.58)}.v221-replay-content{padding:18px;max-height:76vh;overflow:auto}.v221-replay-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.v221-turn{margin-top:12px;padding:14px;border-radius:16px;border-left:5px solid #eab308;background:rgba(234,179,8,.08)}.v221-turn.tone-good{border-left-color:#22c55e;background:rgba(34,197,94,.08)}.v221-turn.tone-bad{border-left-color:#ef4444;background:rgba(239,68,68,.08)}.v221-turn.key-turn{box-shadow:0 0 0 2px rgba(59,130,246,.35)}.v221-turn-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}.v221-chip-row{display:flex;gap:6px;flex-wrap:wrap}.v221-chip{font-size:12px;font-weight:700;padding:4px 8px;border-radius:999px;background:rgba(100,116,139,.12)}.v221-chip.key{background:rgba(59,130,246,.14)}.v221-message{margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.72)}.v221-reply{opacity:.85}.v221-diagnosis,.v221-alternative{margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(99,102,241,.08);line-height:1.55}.v221-alternative{background:rgba(34,197,94,.08)}.v221-dialog-actions{padding:12px 18px;border-top:1px solid var(--line,#ddd);display:flex;justify-content:flex-end}.v221-history-note{margin-bottom:14px}.v221-history-actions{display:flex;gap:6px;align-items:center}@media(max-width:620px){.v221-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v221-replay-content{padding:14px}}`;
+    document.head?.appendChild(style);
+  }
+
+  function renderReplayHtmlV221(replay) {
+    const turns = (replay.turns || []).map(turn => `
+      <article class="v221-turn tone-${turn.tone} ${turn.keyReasons?.length ? "key-turn" : ""}">
+        <div class="v221-turn-head"><strong>第${turn.turn}轮 · ${turn.score}分</strong><div class="v221-chip-row"><span class="v221-chip">${escapeHtml(turn.label)}</span>${(turn.keyReasons || []).map(reason => `<span class="v221-chip key">${escapeHtml(reason)}</span>`).join("")}</div></div>
+        <div class="v221-message"><strong>你发送</strong><br>${escapeHtml(turn.userText)}</div>
+        <div class="v221-message v221-reply"><strong>对方回应</strong><br>${escapeHtml(turn.replyText || "本轮没有后续回复")}</div>
+        <div class="v221-diagnosis"><strong>${turn.issueLabel ? `主要问题：${escapeHtml(turn.issueLabel)}` : "这一句做对了什么"}</strong><br>${escapeHtml(turn.issueText || turn.strength || "表达与当前场景基本匹配。")}${turn.semantic ? `<br><span class="small">系统识别：${escapeHtml(turn.semantic.action || "表达观点")} · ${escapeHtml(turn.semantic.object || "当前交流")} · ${escapeHtml(turn.semantic.context || "当前上下文")}</span>` : ""}</div>
+        <div class="v221-alternative"><strong>更好的表达方向</strong><br>${escapeHtml(turn.alternative)}<br><span class="small">下一步：${escapeHtml(turn.nextStep)}</span></div>
+      </article>`).join("");
+    return `<div class="v221-replay-head"><div><span class="version-chip">V2.21 逐句复盘</span><h2>${escapeHtml(replay.title)}</h2><p class="small">${escapeHtml(replay.characterName)} · ${escapeHtml(replay.personality)} · ${replay.trainingMode === "immersive" ? "沉浸模式" : "教练模式"}</p></div><div class="result-score">${replay.avg}</div></div>
+      <div class="v221-summary-grid"><div><strong>${replay.bestTurn || "-"}</strong><span>最佳轮次</span></div><div><strong>${replay.worstTurn || "-"}</strong><span>最低轮次</span></div><div><strong>${replay.ineffectiveQuestions}</strong><span>无效追问</span></div><div><strong>${replay.boundarySignals}</strong><span>边界动作</span></div></div>
+      <div class="v221-summary"><strong>整局结论</strong><p>${replay.topIssue ? `最常见问题是“${escapeHtml(replay.topIssue.label)}”，共${replay.topIssue.count}次。` : "本局没有形成明显重复错误。"}</p><span>下一局只练一个重点：${escapeHtml(replay.nextFocus)}</span></div>${turns || '<div class="empty">本局没有可复盘的用户消息。</div>'}`;
+  }
+
+  function ensureReplayDialogV221() {
+    ensureV221Styles();
+    let dialog = document.getElementById("v221ReplayDialog");
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.id = "v221ReplayDialog";
+    dialog.className = "v221-replay-dialog";
+    dialog.innerHTML = `<div id="v221ReplayContent" class="v221-replay-content"></div><form method="dialog" class="v221-dialog-actions"><button class="secondary-btn" value="close">关闭复盘</button></form>`;
+    document.body.appendChild(dialog);
+    return dialog;
+  }
+
+  function openReplayV221(replay) {
+    if (!replay?.turns) return false;
+    const dialog = ensureReplayDialogV221();
+    const content = document.getElementById("v221ReplayContent");
+    if (content) content.innerHTML = renderReplayHtmlV221(replay);
+    try { dialog.showModal(); } catch {}
+    return true;
+  }
+
+  function openHistoryReplayV221(historyId) {
+    const entry = (state.game.trainingHistory || []).find(item => item.id === historyId);
+    if (!entry?.replayV221) return false;
+    return openReplayV221(entry.replayV221);
+  }
+
+  const finalizeSessionV220ReplayBase = finalizeSession;
+  finalizeSession = function finalizeSessionV221(result) {
+    const completed = session;
+    const replay = buildSessionReplayV221(completed, result);
+    finalizeSessionV220ReplayBase(result);
+    const history = state.game.trainingHistory || [];
+    const latest = history[history.length - 1];
+    if (latest && replay.turns.length) {
+      latest.replayV221 = replay;
+      latest.replayVersion = REPLAY_VERSION_V221;
+      saveState({ skipBackup: true });
+    }
+    ensureV221Styles();
+    resultContent.innerHTML += `<div class="v221-summary"><strong>整局逐句复盘已保存</strong><p>${replay.topIssue ? `本局最常见问题：${escapeHtml(replay.topIssue.label)}。` : "本局没有明显重复错误。"}</p><button id="openLatestReplayV221" class="secondary-btn" type="button">查看逐句回放</button></div>`;
+    document.getElementById("openLatestReplayV221")?.addEventListener("click", () => openReplayV221(replay));
+  };
+
+  const renderStatsV220ReplayBase = renderStats;
+  renderStats = function renderStatsV221() {
+    ensureV221Styles();
+    renderStatsV220ReplayBase();
+    const history = state.game.trainingHistory || [];
+    const replayCount = history.filter(item => item.replayV221?.turns?.length).length;
+    mainView.insertAdjacentHTML("afterbegin", `<section class="card v221-history-note"><div class="section-title"><div><span class="version-chip">V2.21</span><h2>整局回放与逐句标色</h2><p class="small">绿色是自然有效，黄色是可继续但能更好，红色是明显问题，蓝色边框表示关键转折。旧版本记录没有保存逐句原文，只有从V2.21起完成的新训练可以打开。</p></div><span>${replayCount}局可回放</span></div></section>`);
+    mainView.querySelectorAll("[data-delete-history]").forEach(button => {
+      const entry = history.find(item => item.id === button.dataset.deleteHistory);
+      if (!entry?.replayV221) return;
+      button.insertAdjacentHTML("beforebegin", `<button class="mini-action" data-v221-replay="${entry.id}" type="button">逐句复盘</button>`);
+    });
+    mainView.querySelectorAll("[data-v221-replay]").forEach(button => button.addEventListener("click", () => openHistoryReplayV221(button.dataset.v221Replay)));
+  };
+
+  if (typeof globalThis !== "undefined") globalThis.__heartTrainingV221 = {
+    REPLAY_VERSION_V221,
+    REPLAY_ISSUE_COPY_V221,
+    buildSessionReplayV221,
+    findTurningPointsV221,
+    getAlternativeV221,
+    renderReplayHtmlV221
+  };
+
+  if (typeof globalThis !== "undefined") {
