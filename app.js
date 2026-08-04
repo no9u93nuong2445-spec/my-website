@@ -2,7 +2,7 @@
 layout: null
 ---
 {% capture app01_source %}{% include_relative fragments/app-01.txt %}{% endcapture %}
-{{ app01_source | replace: 'const APP_VERSION = "2.0";', 'const APP_VERSION = "2.20";' }}
+{{ app01_source | replace: 'const APP_VERSION = "2.0";', 'const APP_VERSION = "2.21";' }}
 {% include_relative fragments/app-02.txt %}
 {% include_relative fragments/app-03.txt %}
 {% include_relative fragments/app-04.txt %}
@@ -19,7 +19,9 @@ layout: null
 {% include_relative fragments/app-15.txt %}
 {% capture v219_overlay %}{% include_relative fragments/app-v219-overlay.txt %}{% endcapture %}
 {% capture v220_overlay %}{% include_relative fragments/app-v220-overlay.txt %}{% endcapture %}
-{% assign combined_overlay = v219_overlay | replace: '  if (typeof globalThis !== "undefined") {', v220_overlay %}
+{% capture v221_overlay %}{% include_relative fragments/app-v221-overlay.txt %}{% endcapture %}
+{% assign combined_v220 = v219_overlay | replace: '  if (typeof globalThis !== "undefined") {', v220_overlay %}
+{% assign combined_overlay = combined_v220 | replace: '  if (typeof globalThis !== "undefined") {', v221_overlay %}
 {% capture app16_source %}{% include_relative fragments/app-16.txt %}{% endcapture %}
-{% assign app16_v220 = app16_source | replace: 'APP_VERSION: "2.18"', 'APP_VERSION: "2.20"' %}
-{{ app16_v220 | replace: '  if (typeof globalThis !== "undefined") {', combined_overlay }}
+{% assign app16_v221 = app16_source | replace: 'APP_VERSION: "2.18"', 'APP_VERSION: "2.21"' %}
+{{ app16_v221 | replace: '  if (typeof globalThis !== "undefined") {', combined_overlay }}
