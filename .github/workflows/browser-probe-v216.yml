@@ -1,0 +1,83 @@
+name: Browser probe V2.16
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'browser-probe-trigger-v216.txt'
+      - '.github/workflows/browser-probe-v216.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install --no-save --no-package-lock playwright-core@1.54.2
+      - name: Run step-by-step browser probe
+        run: |
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          export CHROME
+          node <<'NODE'
+          const fs = require('fs');
+          const { chromium } = require('playwright-core');
+          const url = 'https://no9u93nuong2445-spec.github.io/my-website/?browserProbe=' + Date.now();
+          const result = { status:'failed', url, steps:[], console:[], pageErrors:[], requestFailures:[], error:null };
+          const mark = (name, data={}) => { result.steps.push({name, at:new Date().toISOString(), ...data}); console.log('STEP', name, data); };
+          async function run(){
+            const browser = await chromium.launch({executablePath:process.env.CHROME,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const context = await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+            const page = await context.newPage();
+            page.on('console',m=>{if(m.type()==='error')result.console.push(m.text())});
+            page.on('pageerror',e=>result.pageErrors.push(e.stack||e.message));
+            page.on('requestfailed',r=>result.requestFailures.push(r.url()+' :: '+(r.failure()?.errorText||'failed')));
+            try {
+              await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000}); mark('page-loaded',{title:await page.title()});
+              await page.waitForFunction(()=>document.querySelectorAll('.level-card').length===45,null,{timeout:45000});
+              mark('45-levels',{count:await page.locator('.level-card').count(),nav:await page.locator('.nav-item').count()});
+              const onboarding=page.locator('#onboardingDialog[open]');
+              if(await onboarding.count()){ await page.locator('#onboardingSkipBtn').click(); mark('onboarding-skipped'); }
+              else mark('onboarding-not-open');
+              const views=[['free','#startFreeBtn'],['courses','.course-hero'],['stats','text=个人训练诊断'],['settings','#themeSelect'],['home','.level-card']];
+              for(const [view,marker] of views){
+                await page.locator(`[data-view="${view}"]`).click();
+                await page.locator(marker).first().waitFor({state:'visible',timeout:12000});
+                mark('view-'+view);
+              }
+              await page.locator('.level-card:not([disabled])').first().click();
+              await page.locator('#messageInput').waitFor({state:'visible',timeout:12000}); mark('level-opened');
+              await page.locator('#messageInput').fill('看到你写不爱早起，我周末也经常睡到自然醒。你周末更喜欢探店还是宅着？');
+              await page.locator('#sendBtn').click();
+              await page.locator('.bubble-score').first().waitFor({state:'visible',timeout:12000});
+              mark('message-scored',{scores:await page.locator('.bubble-score').count(),herMessages:await page.locator('.message-row.her').count()});
+              const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
+              mark('mobile-layout',{overflow});
+              if(overflow) throw new Error('390x844 horizontal overflow');
+              if(result.console.length||result.pageErrors.length||result.requestFailures.length) throw new Error('browser errors detected');
+              result.status='passed';
+            } finally {
+              fs.writeFileSync('browser-v216.html',await page.content());
+              await page.screenshot({path:'browser-v216.png',fullPage:true});
+              await browser.close();
+            }
+          }
+          run().catch(e=>{result.error=e.stack||String(e)}).finally(()=>{
+            fs.writeFileSync('BROWSER_PROBE_V216.json',JSON.stringify(result,null,2)+'\n');
+            console.log(JSON.stringify(result,null,2));
+            if(result.status!=='passed')process.exitCode=1;
+          });
+          NODE
+      - name: Upload browser probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-probe-v216
+          path: |
+            BROWSER_PROBE_V216.json
+            browser-v216.png
+            browser-v216.html
+          if-no-files-found: ignore

@@ -1,0 +1,40 @@
+name: Commit verified icon V2.16
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'icon-trigger-v216.txt'
+      - '.github/workflows/commit-icon-v216.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  commit-icon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Decode and verify icon
+        run: |
+          mkdir -p assets
+          cat > /tmp/icon.b64 <<'EOF'
+          iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAEc0lEQVR4nO3dUXITQQxFUUGxApYDW4Mv1sZyYA18mDImyUxsv5nWk3TPL5m4rb7uJFPB+fDty68AnvUxewGojYAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoLkU/YCjvHj5+edf/3+9feyldzyXNWxPtT9Uwf727Pl7G3zXNV56gX03A69duyeea5qgUoBHbVJt/QN81zVMmW+iT5jn/RP67mqlQqcQGum+eiL3nNV67mfQMteiw89kOeqUlgHtHh8dz6c56qy+AaUMrh3H9RzVYlMA0oc2c5De64ql2NA6cN6cwGeq0pnF5DJmF4sw3NVDrwCshrQdTGeqzLhFRDKMbqR6PbacuZzg9HlBKKeh/iMyyUgFGURkM/rqRCToVkEhLoICJL8gEyO4oocRpcfEEojIEgICJLkgBy+ipeWPkBOIEgICBICgoSAICEgSAgIEgKChIAgISBIkgPy+d3eotIH2OQt7nbcjvihG//rL6wo/39lnDfirVfnu4+4/sKnpZ9Abb8H2pns/tDXX1hafkBnDPfdz7n1AesvVDh0mR8QSiMgSCwCcjiKyzEZmkVAqMsloMVv+731AesvfI7J8RM+AcXChvb3cv2Fj/KpJxxuJN46+13fe9yJJqA97e/9i6zqCasvYRduA7JiOBy7gMJyTA48x+IYULgOK5HtQEwDCuORrec8Ct+Awntwy5gPwTqgsB/f2fyfvt2P8Vum/Xjvn86F+wl0VWWghyj0ZMucQFftj6JC9UShE2iIWvVExYDKjfh+FZ9avYCi5qC7KhlQS0VfFVUDKjruLXWfTtWAovLQOykcUHRpqPSzqB1QA6XriQYBld6A0ou/KB9QtNiGujoEVFSP7psEVG4zyi14S5OAotGW1NInoKjTUJV13qNVQCV0qif6BWS+PebLe0K3gKLjJjlrGFC4NuS5KlHPgAy1rCcaB9R1w9y0DSicGvJZyeE6B2SicT3RPqD0zUtfwNmaBxQDtjBX/4Air6EJ7Y4IKMWEemJOQEO2c70pAcXahub0OiigZebUE9MCGrW1a8wKKM5vaFqj4wKKM/d4Wj0xM6CTDKwnxgY0c7PPMDSgOLqhsUXODehAY+uJ4QFN3vijjA4ojmhoeIXTAwqtgOH1BAEpqCcI6IIUnkZAfz3aEM1dENA/9zdBPVcEBAkB/eeeo4Xj5xYBvbTfB/W8QECQENAbto4Zjp/XCOhtr1uhnjcR0KbbYqhnCwFBQkB7LgcPx8+Oen90F1Y4gSAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAICEgSAgIEgKChIAgISBICAgSAoKEgCAhIEgICBICgoSAIPkDKuNbyFXHZwUAAAAASUVORK5CYII=
+          EOF
+          tr -d '[:space:]' < /tmp/icon.b64 | base64 -d > assets/icon-192.png
+          test "$(sha256sum assets/icon-192.png | awk '{print $1}')" = "8d9c7d6e28067c2c1771a4afc08902d3a0b4087e1d642abc0e7292e72816d5b0"
+          test "$(wc -c < assets/icon-192.png)" = "1196"
+      - name: Commit icon to main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/icon-192.png
+          if ! git diff --cached --quiet; then
+            git commit -m '添加V2.16已校验应用图标 [skip ci]'
+            git push origin HEAD:main
+          fi
