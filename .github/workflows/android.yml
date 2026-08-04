@@ -8,8 +8,8 @@ on:
       - "fragments/**"
       - "index.html"
       - "style.css"
-      - ".github/scripts/build_v220_app.py"
-      - ".github/scripts/dialogue_v220_harness.js"
+      - ".github/scripts/build_v221_app.py"
+      - ".github/scripts/dialogue_v221_harness.js"
       - ".github/workflows/android.yml"
   pull_request:
     branches: [main]
@@ -18,8 +18,8 @@ on:
       - "fragments/**"
       - "index.html"
       - "style.css"
-      - ".github/scripts/build_v220_app.py"
-      - ".github/scripts/dialogue_v220_harness.js"
+      - ".github/scripts/build_v221_app.py"
+      - ".github/scripts/dialogue_v221_harness.js"
       - ".github/workflows/android.yml"
   workflow_dispatch:
 
@@ -44,15 +44,15 @@ jobs:
       - name: Install Android SDK 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Generate and validate V2.20 scenario engine
+      - name: Generate and validate V2.21 replay engine
         run: |
           set -euo pipefail
           cp app.js /tmp/app-template.js
           trap 'mv /tmp/app-template.js app.js' EXIT
-          python3 .github/scripts/build_v220_app.py app.js
+          python3 .github/scripts/build_v221_app.py app.js
           node --check app.js
-          node .github/scripts/dialogue_v220_harness.js | tee android-dialogue-test.log
-          grep -Fq '全部通过：22/22' android-dialogue-test.log
+          node .github/scripts/dialogue_v221_harness.js | tee android-dialogue-test.log
+          grep -Fq '全部通过：27/27' android-dialogue-test.log
 
       - name: Build debug APK
         run: gradle -p app :app:assembleDebug --stacktrace
@@ -62,21 +62,23 @@ jobs:
           set -euo pipefail
           PAGE='app/app/build/generated/offlineAssets/index.html'
           test -s "$PAGE"
-          test "$(wc -c < "$PAGE")" -gt 225000
-          grep -q 'APP_VERSION = "2.20"' "$PAGE"
-          grep -q 'V2.20 真实场景训练版' "$PAGE"
+          test "$(wc -c < "$PAGE")" -gt 235000
+          grep -q 'APP_VERSION = "2.21"' "$PAGE"
+          grep -q 'V2.21 逐句复盘版' "$PAGE"
           grep -q 'ROLE_PERSONALITIES_V219' "$PAGE"
           grep -q 'REAL_SCENARIOS_V220' "$PAGE"
-          grep -q 'getRealScenarioStatusV220' "$PAGE"
-          ! grep -q 'app.js?v=220' "$PAGE"
-          ! grep -q 'style.css?v=220' "$PAGE"
-          grep -q "versionName '2.2.0'" app/app/build.gradle
-          grep -q 'site-v2-2-0' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
+          grep -q 'REPLAY_VERSION_V221' "$PAGE"
+          grep -q 'buildSessionReplayV221' "$PAGE"
+          grep -q 'renderReplayHtmlV221' "$PAGE"
+          ! grep -q 'app.js?v=221' "$PAGE"
+          ! grep -q 'style.css?v=221' "$PAGE"
+          grep -q "versionName '2.2.1'" app/app/build.gradle
+          grep -q 'site-v2-2-1' app/app/src/main/java/com/bianzhifeng/hearttraining/ArchiveInstaller.java
 
       - name: Upload APK and validation evidence
         uses: actions/upload-artifact@v4
         with:
-          name: heart-training-v220-debug-apk
+          name: heart-training-v221-debug-apk
           path: |
             app/app/build/outputs/apk/debug/app-debug.apk
             app/app/build/generated/offlineAssets/index.html
