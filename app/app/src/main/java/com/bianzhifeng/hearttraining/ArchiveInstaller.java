@@ -9,7 +9,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 final class ArchiveInstaller {
-  private static final String SITE_DIR = "site-v2-2-0";
+  private static final String SITE_DIR = "site-v2-2-1";
   private static final String ASSET_INDEX = "index.html";
 
   private ArchiveInstaller() {}
@@ -40,35 +40,37 @@ final class ArchiveInstaller {
 
     if (!isValidHtml(index)) {
       delete(index);
-      throw new IOException("V2.20离线网页内容不完整");
+      throw new IOException("V2.21离线网页内容不完整");
     }
     return index;
   }
 
   private static boolean isValidHtml(byte[] html) {
-    if (html == null || html.length < 225000) return false;
+    if (html == null || html.length < 235000) return false;
     String text = new String(html, StandardCharsets.UTF_8);
     String lower = text.toLowerCase();
     return lower.contains("<!doctype html")
         && lower.contains("<html")
         && text.contains("心动训练营")
-        && text.contains("V2.20 真实场景训练版")
-        && text.contains("APP_VERSION = \"2.20\"")
+        && text.contains("V2.21 逐句复盘版")
+        && text.contains("APP_VERSION = \"2.21\"")
         && text.contains("ROLE_PERSONALITIES_V219")
         && text.contains("REAL_SCENARIOS_V220")
-        && text.contains("getRealScenarioStatusV220")
+        && text.contains("REPLAY_VERSION_V221")
+        && text.contains("buildSessionReplayV221")
+        && text.contains("renderReplayHtmlV221")
         && text.contains("沉浸模式")
         && text.contains("自由练习")
         && text.contains("课程")
         && text.contains("报告")
         && text.contains("设置")
-        && !text.contains("app.js?v=220")
-        && !text.contains("style.css?v=220")
+        && !text.contains("app.js?v=221")
+        && !text.contains("style.css?v=221")
         && lower.contains("</html>");
   }
 
   private static boolean isValidHtml(File file) {
-    if (file == null || !file.isFile() || file.length() < 225000) return false;
+    if (file == null || !file.isFile() || file.length() < 235000) return false;
     try (InputStream in = new java.io.FileInputStream(file)) {
       ByteArrayOutputStream out = new ByteArrayOutputStream((int) file.length());
       byte[] buffer = new byte[8192];
