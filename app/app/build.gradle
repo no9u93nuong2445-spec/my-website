@@ -9,16 +9,17 @@ def sourceIndex = new File(repoRoot, 'index.html')
 def sourceCss = new File(repoRoot, 'style.css')
 def sourceV219Overlay = new File(repoRoot, 'fragments/app-v219-overlay.txt')
 def sourceV220Overlay = new File(repoRoot, 'fragments/app-v220-overlay.txt')
+def sourceV221Overlay = new File(repoRoot, 'fragments/app-v221-overlay.txt')
 def sourceFragments = (1..16).collect { number ->
     new File(repoRoot, String.format('fragments/app-%02d.txt', number))
 }
 
 tasks.register('generateOfflineHtml') {
-    inputs.files([sourceIndex, sourceCss, sourceV219Overlay, sourceV220Overlay] + sourceFragments)
+    inputs.files([sourceIndex, sourceCss, sourceV219Overlay, sourceV220Overlay, sourceV221Overlay] + sourceFragments)
     outputs.file(generatedOfflineAssetsDir.map { directory -> directory.file('index.html') })
 
     doLast {
-        def missing = ([sourceIndex, sourceCss, sourceV219Overlay, sourceV220Overlay] + sourceFragments).findAll { file -> !file.isFile() }
+        def missing = ([sourceIndex, sourceCss, sourceV219Overlay, sourceV220Overlay, sourceV221Overlay] + sourceFragments).findAll { file -> !file.isFile() }
         if (!missing.isEmpty()) {
             throw new GradleException('缺少离线网页源码：' + missing.collect { it.path }.join(', '))
         }
@@ -28,14 +29,15 @@ tasks.register('generateOfflineHtml') {
         def appParts = sourceFragments.collect { file -> file.getText('UTF-8') }
         def v219 = sourceV219Overlay.getText('UTF-8')
         def v220 = sourceV220Overlay.getText('UTF-8')
+        def v221 = sourceV221Overlay.getText('UTF-8')
         def exportMarker = '  if (typeof globalThis !== "undefined") {'
 
-        appParts[0] = appParts[0].replace('const APP_VERSION = "2.0";', 'const APP_VERSION = "2.20";')
-        appParts[15] = appParts[15].replace('APP_VERSION: "2.18"', 'APP_VERSION: "2.20"')
-        if (appParts[15].count(exportMarker) != 1 || v219.count(exportMarker) != 1 || v220.count(exportMarker) != 1) {
-            throw new GradleException('V2.19或V2.20兼容层插入标记异常')
+        appParts[0] = appParts[0].replace('const APP_VERSION = "2.0";', 'const APP_VERSION = "2.21";')
+        appParts[15] = appParts[15].replace('APP_VERSION: "2.18"', 'APP_VERSION: "2.21"')
+        if (appParts[15].count(exportMarker) != 1 || v219.count(exportMarker) != 1 || v220.count(exportMarker) != 1 || v221.count(exportMarker) != 1) {
+            throw new GradleException('V2.19、V2.20或V2.21兼容层插入标记异常')
         }
-        def combinedOverlay = v219.replace(exportMarker, v220)
+        def combinedOverlay = v219.replace(exportMarker, v220).replace(exportMarker, v221)
         appParts[15] = appParts[15].replaceFirst(Pattern.quote(exportMarker), Matcher.quoteReplacement(combinedOverlay))
         def app = appParts.join('').replace('</script>', '<\\/script>')
 
@@ -51,17 +53,19 @@ tasks.register('generateOfflineHtml') {
         def required = [
             '<!doctype html',
             '心动训练营',
-            'APP_VERSION = "2.20"',
-            'V2.20 真实场景训练版',
+            'APP_VERSION = "2.21"',
+            'V2.21 逐句复盘版',
             'ROLE_PERSONALITIES_V219',
             'REAL_SCENARIOS_V220',
-            'getRealScenarioStatusV220',
+            'REPLAY_VERSION_V221',
+            'buildSessionReplayV221',
+            'renderReplayHtmlV221',
             '</html>'
         ]
-        if (index.getBytes('UTF-8').length < 225000 || !required.every { marker -> index.contains(marker) }) {
-            throw new GradleException('Android V2.20离线页面生成失败或内容不完整')
+        if (index.getBytes('UTF-8').length < 235000 || !required.every { marker -> index.contains(marker) }) {
+            throw new GradleException('Android V2.21离线页面生成失败或内容不完整')
         }
-        if (index.contains('app.js?v=220') || index.contains('style.css?v=220')) {
+        if (index.contains('app.js?v=221') || index.contains('style.css?v=221')) {
             throw new GradleException('Android离线页面仍引用外部网页资源')
         }
 
@@ -71,7 +75,7 @@ tasks.register('generateOfflineHtml') {
         }
         def output = new File(outputDir, 'index.html')
         output.setText(index, 'UTF-8')
-        println "Android V2.20 offline HTML generated: ${output.length()} bytes"
+        println "Android V2.21 offline HTML generated: ${output.length()} bytes"
     }
 }
 
@@ -83,8 +87,8 @@ android {
         applicationId 'com.bianzhifeng.hearttraining'
         minSdk 24
         targetSdk 35
-        versionCode 220
-        versionName '2.2.0'
+        versionCode 221
+        versionName '2.2.1'
     }
 
     sourceSets {
